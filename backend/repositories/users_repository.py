@@ -34,7 +34,38 @@ def login_repo(email):
     finally:
         if conn: conn.close()
 
-def get_users_repo(id):
+def get_users_repo():
+    conn = None
+
+    try:
+        conn = get_connection()
+
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    id, 
+                    account_id,
+                    first_name,
+                    last_name,
+                    email,
+                    username,
+                    password_hash,
+                    role_id,
+                    status
+                FROM tblUsers
+                """,
+                (id,)
+            )
+            return cursor.fetchone()
+
+    except Exception as e:
+        print(f"Error: {e}")        
+    finally:
+        if conn: conn.close()
+
+
+def get_user_by_id_repo(id):
     conn = None
 
     try:
@@ -64,6 +95,8 @@ def get_users_repo(id):
         print(f"Error: {e}")        
     finally:
         if conn: conn.close()
+
+
         
 
 
