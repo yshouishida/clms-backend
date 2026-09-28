@@ -97,6 +97,25 @@ def get_user_by_id_repo(id):
         if conn: conn.close()
 
 
+def add_user_repo():
+    conn = None
+
+    try:
+        conn = get_connection()
+
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+
+                """
+            )
+    except Exception as e:
+        print(f"Error: {e}")
+
+    finally:
+        if conn: conn.close()
+
+
         
 
 
