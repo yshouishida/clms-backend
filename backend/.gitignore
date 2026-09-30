@@ -1,3 +1,18 @@
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Virtual environment
+venv/
+.venv/
+
+# Environment variables / secrets
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# Database scripts
+backend/database/views.sql

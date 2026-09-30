@@ -1,6 +1,6 @@
 from flask import Blueprint
 
-from backend.controllers.student_control import (
+from backend.controllers.students_control import (
     get_students_control,
     get_by_id_control
 )

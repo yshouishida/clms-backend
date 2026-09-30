@@ -13,16 +13,19 @@ def get_students_repo():
             cursor.execute(
                 """
                 SELECT
-                    s.id,
+                    s.id AS student_id,
+                    s.user_id,
                     s.student_number,
+                    u.account_id,
                     u.first_name,
                     u.last_name,
+                    u.email,
+                    u.status AS user_status,
                     s.program,
                     s.year_level,
                     s.section
-                FROM tblStudents s
-                INNER JOIN tblUsers u
-                ON s.user_id = u.id
+                FROM tblStudents AS s
+                JOIN tblUsers AS u ON u.id = s.user_id;
                 """
             )
             students = cursor.fetchall()
@@ -48,17 +51,20 @@ def get_by_id_repo(id):
             cursor.execute(
                 """
                 SELECT
-                    s.id,
+                    s.id AS student_id,
+                    s.user_id,
                     s.student_number,
+                    u.account_id,
                     u.first_name,
                     u.last_name,
+                    u.email,
+                    u.status AS user_status,
                     s.program,
                     s.year_level,
                     s.section
-                FROM tblStudents s
-                INNER JOIN tblUsers u
-                ON s.user_id = u.id
-                WHERE s.id = %s
+                FROM tblStudents AS s
+                JOIN tblUsers AS u ON u.id = s.user_id
+                WHERE s.student_id = %s
                 """,
                 (id,)
             )
@@ -74,93 +80,90 @@ def get_by_id_repo(id):
 #===============================================
 # ADD STUDENT
 #===============================================
-def add_student_repo(student_number, program, year_level, section):
+def add_student_repo(
+        account_id, 
+        first_name, 
+        last_name, 
+        email, 
+        username, 
+        password_hash, 
+        role_id, 
+        student_number, 
+        program, 
+        year_level, 
+        section
+):
     conn = None
 
     try:
         conn = get_connection()
 
         with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO tblUsers
+                (
+                    account_id, 
+                    first_name, 
+                    last_name, 
+                    email, 
+                    username, 
+                    password_hash, 
+                    role_id,
+                    status,
+                    created_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 'Active', NOW())
+                """,
+                (
+                    account_id, 
+                    first_name, 
+                    last_name, 
+                    email, 
+                    username, 
+                    password_hash,
+                    role_id
+                )
+            )
+
+            user_id = cursor.lastrowid
+
             cursor.execute(
                 """
                 INSERT INTO tblStudents
                 (
+                    user_id,
                     student_number,
                     program,
                     year_level,
                     section
                 )
-                VALUES
-                (
-                    %s,
-                    %s,
-                    %s,
-                    %s
-                )
+                VALUES (%s, %s, %s, %s, %s)
                 """,
                 (
+                    user_id,
                     student_number,
                     program,
                     year_level,
                     section
                 )
             )
+
             conn.commit()
             return True
-        
+
     except Exception as e:
-        if conn: conn.rollback()
+        if conn:conn
         print(f"Error: {e}")
 
     finally:
         if conn: conn.close()
-
+        
 #===============================================
 # UPDATE STUDENT
 #===============================================
 def update_student_repo(student_number, program, year_level, section, id):
-    conn = None
-
-    try:
-        conn = get_connection()
-
-        with conn.cursor() as cursor:
-            cursor.execute(
-                """
-                SELECT id FROM tblStudents WHERE id = %s
-                """,
-                (id,)
-            )
-            if cursor.fetchone() is None:
-                return False
-
-            cursor.execute(
-                """
-                UPDATE tblStudents
-                SET 
-                    student_number,
-                    program,
-                    year_level,
-                    section
-                WHERE id = %s
-                """,
-                (
-                    student_number, 
-                    program, 
-                    year_level, 
-                    section, 
-                    id
-                )
-            )
-            conn.commit()
-            return True
-
-    except Exception as e:
-        if conn:conn.rollback()
-        print(f"Error: {e}")
-        
-    finally:
-        if conn: conn.close()
+    return
 
 #===============================================
 # DELETE STUDENT

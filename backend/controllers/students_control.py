@@ -1,8 +1,10 @@
 from backend.utils.api_response import success, error
+from flask import request
 
-from backend.services.student_service import (
+from backend.services.students_service import (
     get_students_service,
-    get_by_id_service
+    get_by_id_service,
+    add_student_service
 )
 
 def get_students_control():
@@ -21,3 +23,4 @@ def get_by_id_control(id):
         return error("Student is not found.", 404)
 
     return success("Get successfully.", 200, student)
+

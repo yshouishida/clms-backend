@@ -4,7 +4,7 @@ from functools import wraps
 from datetime import datetime, timedelta, timezone
 from flask import request, g
 
-from backend.utils.api_response import success, error
+from backend.utils.api_response import error
 from backend.config.settings import (
     JWT_SECRET_KEY, 
     JWT_TOKEN_EXPIRES
