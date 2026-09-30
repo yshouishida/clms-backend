@@ -16,4 +16,5 @@ venv/
 .idea/
 
 # Database scripts
-/backend/database/views.sql
+/database/views.sql
+
