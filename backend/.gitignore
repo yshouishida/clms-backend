@@ -9,10 +9,11 @@ venv/
 
 # Environment variables / secrets
 .env
+*.env
 
 # IDE
 .vscode/
 .idea/
 
 # Database scripts
-backend/database/views.sql
+/backend/database/views.sql
