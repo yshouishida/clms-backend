@@ -24,3 +24,25 @@ def get_by_id_control(id):
 
     return success("Get successfully.", 200, student)
 
+def add_student_control():
+    user_input = request.get_json()
+    
+    result = add_student_service(
+        user_input.get("account_id"),
+        user_input.get("first_name"),
+        user_input.get("last_name"),
+        user_input.get("email"),
+        user_input.get("username"),
+        user_input.get("password_hash"),
+        user_input.get("role_id"),
+        user_input.get("student_number"),
+        user_input.get("program"),
+        user_input.get("year_level"),
+        user_input.get("section")
+    )
+
+    if result is None:
+        return error("Unable to add student.", 400)
+
+    return success("Student added successfully!", 201)
+
