@@ -162,8 +162,39 @@ def add_student_repo(
 #===============================================
 # UPDATE STUDENT
 #===============================================
-def update_student_repo(student_number, program, year_level, section, id):
-    return
+def update_student_repo(        
+        account_id, 
+        first_name, 
+        last_name, 
+        email, 
+        username, 
+        password_hash, 
+        role_id, 
+        student_number, 
+        program, 
+        year_level, 
+        section
+):
+    conn = None
+
+    try:
+        conn = get_connection()
+
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+
+                """
+            )
+
+        return True 
+    except Exception as e:
+        if conn: conn.rollback()
+        print(f"Error: {e}")
+
+    finally:
+        if conn:conn.close()
+        
 
 #===============================================
 # DELETE STUDENT
