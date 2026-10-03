@@ -3,11 +3,11 @@ import uuid
 from functools import wraps
 from datetime import datetime, timedelta, timezone
 from flask import request, g
-
 from backend.utils.api_response import error
+from backend.utils.jwt_token_blocklist import TOKEN_BLOCKLIST
 from backend.config.settings import (
     JWT_SECRET_KEY, 
-    JWT_TOKEN_EXPIRES
+    JWT_ACCESS_TOKEN_EXPIRES
 )
 
 
@@ -16,7 +16,7 @@ def create_access_token(identity, role):
     payload = {
         "sub": str(identity),
         "jti": jti,
-        "exp": datetime.now(timezone.utc) + timedelta(),
+        "exp": datetime.now(timezone.utc) + timedelta(seconds=JWT_ACCESS_TOKEN_EXPIRES),
         "role": role
     }
     token = jwt.encode(payload, JWT_SECRET_KEY, algorithm="HS256")
@@ -37,12 +37,12 @@ def token_required(f):
             payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=["HS256"])
             jti  = payload.get("jti")
 
-            if jti in JWT_TOKEN_EXPIRES:
+            if jti in TOKEN_BLOCKLIST:
                 return error("Token has been revoked.", 401)
 
             g.jti = jti
             g.user_id = int(payload.get("sub"))
-            g.user_role = int(payload.get("role"))
+            g.user_role = payload.get("role")
             g.jwt_payload = payload
 
             
@@ -64,7 +64,7 @@ def role_required(role_required):
         def decorated(*args, **kwargs):
             user_role = g.user_role
 
-            if user_role != role_required:
+            if user_role.lower() != role_required.lower():
                 return error(f"Access denied. {role_required} is required role", 401)
 
             return f(*args, **kwargs)
