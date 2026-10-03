@@ -7,7 +7,7 @@ from backend.repositories.auth_repository import (
 )
 
 
-def login_service(username, password):
+def login_service(username, password, ip_address=None):
     if not isinstance(username, str) or not isinstance(password, str):
         return None
 

@@ -1,7 +1,7 @@
-from flask import request
+from flask import g, request
 
-from backend.utils.api_response import error
-from backend.services.auth_service import login_service
+from backend.utils.api_response import error, success
+from backend.services.auth_service import login_service, logout_service
 
 
 def login_control():
@@ -19,9 +19,22 @@ def login_control():
     if not username.strip() or not password:
         return error("Username and password are required.", 400)
 
-    result = login_service(username, password)
+    result = login_service(username, password, request.remote_addr)
 
     if result is None:
         return error("Invalid username or password.", 401)
 
     return result, 200
+
+
+def logout_control():
+    logged_out = logout_service(
+        user_id=g.user_id,
+        jti=g.jti,
+        ip_address=request.remote_addr,
+    )
+
+    if not logged_out:
+        return error("Logout failed.", 500)
+
+    return success("Logged out successfully.", 200)
