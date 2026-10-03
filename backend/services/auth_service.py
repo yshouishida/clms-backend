@@ -39,6 +39,15 @@ def login_service(username, password):
         user["role_name"]
     )
 
+    record_auth_event_repo(
+        user_id=user["id"],
+        action="LOGIN",
+        entity_name="tblUsers",
+        record_id=user["id"],
+        description="Successful user login.",
+        ip_address=ip_address,
+    )
+
     return {
         "access_token": access_token,
         **user
