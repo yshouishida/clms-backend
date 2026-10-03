@@ -31,7 +31,7 @@ def token_required(f):
 
         if not auth_header or not auth_header.startswith("Bearer "):
             return error("Authorization is required.", 401)
-        token = auth_header.split("")[1]
+        token = auth_header.split(" ")[1]
 
         try:
             payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=["HS256"])
@@ -57,15 +57,27 @@ def token_required(f):
     return decorated
 
 
-def role_required(role_required):
+
+def role_required(*allowed_roles):
+    normalized_roles = {
+        role.lower() for role in allowed_roles
+    }
+
     def decorator(f):
         @wraps(f)
-
         def decorated(*args, **kwargs):
-            user_role = g.user_role
+            user_role = getattr(g, "user_role", None)
 
-            if user_role.lower() != role_required.lower():
-                return error(f"Access denied. {role_required} is required role", 401)
+            if not isinstance(user_role, str):
+                return error("Authentication is required.", 401)
+
+            if user_role.lower() not in normalized_roles:
+                required_roles = " or ".join(allowed_roles)
+
+                return error(
+                    f"Access denied. Required role: {required_roles}.",
+                    403
+                )
 
             return f(*args, **kwargs)
 

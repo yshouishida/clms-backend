@@ -1,39 +1,5 @@
 from backend.database.connection import get_connection
 
-
-
-def login_repo(email):
-    conn = None
-
-    try:
-        conn = get_connection()
-
-        with conn.cursor as cursor:
-            cursor.execute(
-                """
-                SELECT 
-                    account_id,
-                    first_name,
-                    last_name,
-                    email,
-                    username,
-                    password_hash,
-                    role_id,
-                    status
-                FROM tblUsers
-                WHERE email = %s
-                """,
-                (email,)
-            )
-            return cursor.fetchone()
-
-        
-    except Exception as e:
-        print(f"Error: {e}")
-
-    finally:
-        if conn: conn.close()
-
 def get_users_repo():
     conn = None
 
@@ -44,20 +10,41 @@ def get_users_repo():
             cursor.execute(
                 """
                 SELECT
-                    id, 
-                    account_id,
-                    first_name,
-                    last_name,
-                    email,
-                    username,
-                    password_hash,
-                    role_id,
-                    status
-                FROM tblUsers
-                """,
-                (id,)
+                    u.id AS user_id,
+                    u.account_id,
+                    u.first_name,
+                    u.last_name,
+                    TRIM(CONCAT_WS(' ', u.first_name, u.last_name)) AS full_name,
+                    u.email,
+                    u.username,
+                    u.role_id,
+                    r.role_name,
+                    u.status AS account_status,
+                    u.created_at,
+                    u.updated_at,
+                    u.date_disabled,
+                    s.id AS student_id,
+                    s.student_number,
+                    s.program,
+                    s.year_level,
+                    s.section,
+                    i.id AS instructor_id,
+                    i.employee_number
+                FROM tblUsers u
+                INNER JOIN tblRoles r ON r.id = u.role_id
+                LEFT JOIN tblStudents s ON s.user_id = u.id
+                LEFT JOIN tblInstructors i ON i.user_id = u.id
+                WHERE NOT r.role_name = 'Admin'
+                """
             )
-            return cursor.fetchone()
+            users = cursor.fetchall() 
+
+            for user in users:
+                if user: 
+                    user["created_at"] = user["created_at"].isoformat()
+                    user["updated_at"] = user["updated_at"].isoformat()
+
+            return users
 
     except Exception as e:
         print(f"Error: {e}")        
@@ -75,21 +62,40 @@ def get_user_by_id_repo(id):
             cursor.execute(
                 """
                 SELECT
-                    id, 
-                    account_id,
-                    first_name,
-                    last_name,
-                    email,
-                    username,
-                    password_hash,
-                    role_id,
-                    status
-                FROM tblUsers
-                WHERE id = %s
+                    u.id AS user_id,
+                    u.account_id,
+                    u.first_name,
+                    u.last_name,
+                    TRIM(CONCAT_WS(' ', u.first_name, u.last_name)) AS full_name,
+                    u.email,
+                    u.username,
+                    u.role_id,
+                    r.role_name,
+                    u.status AS account_status,
+                    u.created_at,
+                    u.updated_at,
+                    u.date_disabled,
+                    s.id AS student_id,
+                    s.student_number,
+                    s.program,
+                    s.year_level,
+                    s.section,
+                    i.id AS instructor_id,
+                    i.employee_number
+                FROM tblUsers u
+                INNER JOIN tblRoles r ON r.id = u.role_id
+                LEFT JOIN tblStudents s ON s.user_id = u.id
+                LEFT JOIN tblInstructors i ON i.user_id = u.id
+                WHERE u.id = %s
                 """,
                 (id,)
             )
-            return cursor.fetchone()
+            user = cursor.fetchone()
+            if user: 
+                user["created_at"] = user["created_at"].isoformat()
+                user["updated_at"] = user["updated_at"].isoformat()
+
+            return user
 
     except Exception as e:
         print(f"Error: {e}")        
@@ -97,34 +103,6 @@ def get_user_by_id_repo(id):
         if conn: conn.close()
 
 
-def add_user_repo():
-    conn = None
-
-    try:
-        conn = get_connection()
-
-        with conn.cursor() as cursor:
-            cursor.execute(
-                """
-
-                """
-            )
-    except Exception as e:
-        print(f"Error: {e}")
-
-    finally:
-        if conn: conn.close()
 
 
         
-
-
-
-# account_id
-# first_name
-# last_name
-# email
-# username
-# password_hash
-# role_id
-# status
