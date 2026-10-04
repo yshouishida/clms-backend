@@ -1,9 +1,15 @@
 import os
 from dotenv import load_dotenv
 import pymysql as mysql
+from pathlib import Path
 
 
-load_dotenv()
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+
+load_dotenv(
+    BACKEND_DIR / ".env",
+    encoding="utf-8-sig",
+)
 
 DB_CONFIG = {
     "host": os.getenv("DB_HOST"),
