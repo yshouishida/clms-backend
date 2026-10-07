@@ -21,17 +21,17 @@ RESERVED_NAMES = {"con", "prn", "aux", "nul"} | {
 }
 
 
-def validate_name(name):
+def validate_name(name, max_length=100):
     if not isinstance(name, str):
         raise FolderError("name must be a string.", 400)
 
     name = unicodedata.normalize("NFC", name).strip()
 
-    if not name or len(name) > 100:
-        raise FolderError(
-            "name must contain 1 to 100 characters.",
-            400,
-        )
+    if not name or len(name) > max_length:
+      raise FolderError(
+        f"name must contain 1 to {max_length} characters.",
+        400,
+       )
 
     if (
         name in (".", "..")
@@ -153,7 +153,11 @@ def list_roots_service(user_id):
         ]
 
 
-def open_folder_service(user_id, folder_id, limit=100, offset=0):
+
+
+def open_folder_service(
+    user_id, folder_id, limit=100, offset=0
+):
     with student_transaction(user_id) as (cursor, student_id):
         folder, _ = repo.get_active_folder_repo(
             cursor,
@@ -230,3 +234,4 @@ def create_folder_service(user_id, parent_folder_id, name):
         )
 
         return folder_data(row)
+

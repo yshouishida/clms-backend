@@ -4,8 +4,11 @@ from backend.controllers.folders_controller import (
     create_folder_control,
     initialize_roots_control,
     list_roots_control,
-    open_folder_control,
+    open_folder_control
+   
 )
+
+
 
 from backend.utils.jwt import token_required, role_required
 
@@ -39,3 +42,4 @@ def open_folder(folder_id):
 @role_required("Student")
 def create_folder():
     return create_folder_control()
+
