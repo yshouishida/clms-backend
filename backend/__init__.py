@@ -25,6 +25,7 @@ def create_app():
     from backend.routes.projectFiles_route import project_files_bp
     from backend.routes.project_versions_route import project_versions_bp
     from backend.routes.classes_route import classes_bp
+    from backend.routes.activities_route import activities_bp
    
 
     app.register_blueprint(instructors_bp)
@@ -36,6 +37,7 @@ def create_app():
     app.register_blueprint(project_files_bp)
     app.register_blueprint(project_versions_bp)
     app.register_blueprint(classes_bp)
+    app.register_blueprint(activities_bp)
     
 
     return app
