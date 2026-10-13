@@ -1,4 +1,4 @@
-from flask import g, request
+from flask import current_app, g, request
 
 from backend.services import activities_service
 from backend.services.activities_service import ActivitiesError
@@ -10,6 +10,9 @@ def _respond(operation, message, status_code, *args):
         result = operation(*args)
     except ActivitiesError as exc:
         return error(str(exc), exc.status_code)
+    except Exception:
+        current_app.logger.exception("Activities request failed")
+        return error("Unable to process activities request.", 500)
     return success(message, status_code, result)
 
 
@@ -93,4 +96,16 @@ def update_activity_status_control(activity_id):
         g.user_role,
         activity_id,
         body["status"],
+    )
+
+
+def archive_activity_control(activity_id):
+    return _respond(
+        activities_service.update_activity_status_service,
+        "Activity archived.",
+        200,
+        g.user_id,
+        g.user_role,
+        activity_id,
+        "Archived",
     )

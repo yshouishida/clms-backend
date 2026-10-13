@@ -1,6 +1,7 @@
 from flask import Blueprint
 
 from backend.controllers.activities_controller import (
+    archive_activity_control,
     create_activity_control,
     get_activity_control,
     list_activities_control,
@@ -52,3 +53,10 @@ def update_activity(activity_id):
 @role_required("Admin", "Instructor")
 def update_activity_status(activity_id):
     return update_activity_status_control(activity_id)
+
+
+@activities_bp.route("/activities/<int:activity_id>", methods=["DELETE"])
+@token_required
+@role_required("Admin", "Instructor")
+def archive_activity(activity_id):
+    return archive_activity_control(activity_id)

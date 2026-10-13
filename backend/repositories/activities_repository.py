@@ -2,10 +2,18 @@ def list_activities_repo(cursor, class_id, role, profile_id=None):
     if role == "Student":
         cursor.execute(
             """
-            SELECT a.id, a.class_id, a.instructor_id, a.activity_name,
-                   a.instructions, a.due_date, a.created_at, a.status
+            SELECT
+                a.id,
+                a.class_id,
+                a.instructor_id,
+                a.activity_name,
+                a.instructions,
+                a.due_date,
+                a.created_at,
+                a.status
             FROM tblActivities a
-            INNER JOIN tblClassMembers cm ON cm.class_id = a.class_id
+            INNER JOIN tblClassMembers cm
+                ON cm.class_id = a.class_id
             WHERE a.class_id = %s
               AND cm.student_id = %s
               AND cm.status = 'Enrolled'
@@ -17,8 +25,15 @@ def list_activities_repo(cursor, class_id, role, profile_id=None):
     elif role == "Instructor":
         cursor.execute(
             """
-            SELECT id, class_id, instructor_id, activity_name,
-                   instructions, due_date, created_at, status
+            SELECT
+                id,
+                class_id,
+                instructor_id,
+                activity_name,
+                instructions,
+                due_date,
+                created_at,
+                status
             FROM tblActivities
             WHERE class_id = %s AND instructor_id = %s
             ORDER BY due_date, id
@@ -28,8 +43,15 @@ def list_activities_repo(cursor, class_id, role, profile_id=None):
     else:
         cursor.execute(
             """
-            SELECT id, class_id, instructor_id, activity_name,
-                   instructions, due_date, created_at, status
+            SELECT
+                id,
+                class_id,
+                instructor_id,
+                activity_name,
+                instructions,
+                due_date,
+                created_at,
+                status
             FROM tblActivities
             WHERE class_id = %s
             ORDER BY due_date, id
@@ -39,41 +61,96 @@ def list_activities_repo(cursor, class_id, role, profile_id=None):
     return cursor.fetchall()
 
 
-def get_activity_repo(cursor, activity_id, role, profile_id=None):
+def get_activity_repo(cursor, activity_id, role, profile_id=None, for_update=False):
+    lock_clause = " FOR UPDATE" if for_update else ""
     if role == "Student":
         cursor.execute(
             """
-            SELECT a.id, a.class_id, a.instructor_id, a.activity_name,
-                   a.instructions, a.due_date, a.created_at, a.status
+            SELECT
+                a.id,
+                a.class_id,
+                a.instructor_id,
+                a.activity_name,
+                a.instructions,
+                a.due_date,
+                a.created_at,
+                a.status
             FROM tblActivities a
-            INNER JOIN tblClassMembers cm ON cm.class_id = a.class_id
+            INNER JOIN tblClassMembers cm
+                ON cm.class_id = a.class_id
             WHERE a.id = %s
               AND cm.student_id = %s
               AND cm.status = 'Enrolled'
               AND a.status IN ('Published', 'Closed')
-            """,
+            """ + lock_clause,
             (activity_id, profile_id),
         )
     elif role == "Instructor":
         cursor.execute(
             """
-            SELECT id, class_id, instructor_id, activity_name,
-                   instructions, due_date, created_at, status
+            SELECT
+                id,
+                class_id,
+                instructor_id,
+                activity_name,
+                instructions,
+                due_date,
+                created_at,
+                status
             FROM tblActivities
             WHERE id = %s AND instructor_id = %s
-            """,
+            """ + lock_clause,
             (activity_id, profile_id),
         )
     else:
         cursor.execute(
             """
-            SELECT id, class_id, instructor_id, activity_name,
-                   instructions, due_date, created_at, status
+            SELECT
+                id,
+                class_id,
+                instructor_id,
+                activity_name,
+                instructions,
+                due_date,
+                created_at,
+                status
             FROM tblActivities
             WHERE id = %s
-            """,
+            """ + lock_clause,
             (activity_id,),
         )
+    return cursor.fetchone()
+
+
+def get_active_admin_repo(cursor, user_id):
+    cursor.execute(
+        """
+        SELECT
+            u.id
+        FROM tblUsers u
+        INNER JOIN tblRoles r
+            ON r.id = u.role_id
+        WHERE u.id = %s
+          AND u.status = 'Active'
+          AND r.role_name = 'Admin'
+        """,
+        (user_id,),
+    )
+    return cursor.fetchone()
+
+
+def get_owned_class_for_update_repo(cursor, class_id, instructor_id):
+    cursor.execute(
+        """
+        SELECT
+            id,
+            status
+        FROM tblClasses
+        WHERE id = %s AND instructor_id = %s
+        FOR UPDATE
+        """,
+        (class_id, instructor_id),
+    )
     return cursor.fetchone()
 
 
@@ -81,8 +158,13 @@ def insert_activity_repo(cursor, class_id, instructor_id, fields):
     cursor.execute(
         """
         INSERT INTO tblActivities (
-            class_id, instructor_id, activity_name, instructions,
-            due_date, created_at, status
+            class_id,
+            instructor_id,
+            activity_name,
+            instructions,
+            due_date,
+            created_at,
+            status
         )
         VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP, 'Draft')
         """,
@@ -118,7 +200,11 @@ def update_activity_repo(cursor, activity_id, fields):
 
 def update_activity_status_repo(cursor, activity_id, status):
     cursor.execute(
-        "UPDATE tblActivities SET status = %s WHERE id = %s",
+        """
+        UPDATE tblActivities
+        SET status = %s
+        WHERE id = %s
+        """,
         (status, activity_id),
     )
     return cursor.rowcount > 0

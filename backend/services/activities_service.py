@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 from datetime import datetime, timezone
+import re
 
 from backend.database.connection import get_connection
 from backend.repositories import activities_repository as repo
@@ -34,8 +35,12 @@ def _profile_id(cursor, user_id, role):
     elif role == "Student":
         profile = classes_repo.get_student_profile_repo(cursor, user_id)
         key = "student_id"
-    else:
+    elif role == "Admin":
+        if repo.get_active_admin_repo(cursor, user_id) is None:
+            raise ActivitiesError("An active Admin account is required.", 403)
         return None
+    else:
+        raise ActivitiesError("Access denied.", 403)
     if profile is None:
         raise ActivitiesError("An active account profile is required.", 403)
     return profile[key]
@@ -47,25 +52,39 @@ def _activity_fields(activity_name, instructions, due_date):
     activity_name = activity_name.strip()
     if len(activity_name) > 150:
         raise ActivitiesError("activity_name must not exceed 150 characters.")
+    try:
+        activity_name.encode("utf-8")
+    except UnicodeEncodeError:
+        raise ActivitiesError("activity_name must contain valid text.")
     if not isinstance(instructions, str) or not instructions.strip():
         raise ActivitiesError("instructions are required and must be text.")
-    if len(instructions) > 65535:
+    instructions = instructions.strip()
+    try:
+        instructions_size = len(instructions.encode("utf-8"))
+    except UnicodeEncodeError:
+        raise ActivitiesError("instructions must contain valid text.")
+    if instructions_size > 65535:
         raise ActivitiesError("instructions are too long.")
     if not isinstance(due_date, str):
         raise ActivitiesError("due_date must be an ISO-8601 datetime string.")
+    due_date = due_date.strip()
+    if not re.match(r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}", due_date):
+        raise ActivitiesError("due_date must include a date and time.")
     try:
         parsed_due_date = datetime.fromisoformat(
-            due_date.strip().replace("Z", "+00:00")
+            due_date.replace("Z", "+00:00")
         )
-    except ValueError:
+        if parsed_due_date.tzinfo is not None:
+            parsed_due_date = parsed_due_date.astimezone(timezone.utc).replace(
+                tzinfo=None
+            )
+    except (ValueError, OverflowError):
         raise ActivitiesError("due_date must be a valid ISO-8601 datetime.")
-    if parsed_due_date.tzinfo is not None:
-        parsed_due_date = parsed_due_date.astimezone(timezone.utc).replace(
-            tzinfo=None
-        )
+    if parsed_due_date.year < 1000:
+        raise ActivitiesError("due_date is outside the database DATETIME range.")
     return {
         "activity_name": activity_name,
-        "instructions": instructions.strip(),
+        "instructions": instructions,
         "due_date": parsed_due_date,
     }
 
@@ -120,9 +139,11 @@ def create_activity_service(
 
     with activities_transaction() as cursor:
         instructor_id = _profile_id(cursor, user_id, role)
-        class_row = _get_class_for_role(
-            cursor, class_id, role, instructor_id
+        class_row = repo.get_owned_class_for_update_repo(
+            cursor, class_id, instructor_id
         )
+        if class_row is None:
+            raise ActivitiesError("Class not found.", 404)
         if class_row["status"] != "Active":
             raise ActivitiesError(
                 "Activities cannot be added to an archived class.", 409
@@ -150,7 +171,7 @@ def update_activity_service(
     with activities_transaction() as cursor:
         profile_id = _profile_id(cursor, user_id, role)
         current = repo.get_activity_repo(
-            cursor, activity_id, role, profile_id
+            cursor, activity_id, role, profile_id, for_update=True
         )
         if current is None:
             raise ActivitiesError("Activity not found.", 404)
@@ -181,7 +202,7 @@ def update_activity_status_service(user_id, role, activity_id, status):
     with activities_transaction() as cursor:
         profile_id = _profile_id(cursor, user_id, role)
         current = repo.get_activity_repo(
-            cursor, activity_id, role, profile_id
+            cursor, activity_id, role, profile_id, for_update=True
         )
         if current is None:
             raise ActivitiesError("Activity not found.", 404)
