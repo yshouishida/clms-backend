@@ -5,7 +5,7 @@ from backend.controllers.folders_controller import (
     initialize_roots_control,
     list_roots_control,
     open_folder_control
-   
+
 )
 
 

@@ -1,6 +1,4 @@
-
 from flask import current_app, g, request
-
 
 from backend.utils.api_response import error, success
 from backend.utils.folder_errors import FolderError
@@ -34,16 +32,17 @@ def list_folder_projects_control(folder_id):
             400,
         )
 
-    
+
 
     return respond(
-    list_folder_projects_service,
-    "Projects retrieved.",
-    200,
-    folder_id,
-    limit,
-    offset,
-   )
+        list_folder_projects_service,
+        "Projects retrieved.",
+        200,
+        folder_id,
+        limit,
+        offset,
+    )
+
 
 def create_folder_project_control(folder_id):
     body = request.get_json(silent=True)

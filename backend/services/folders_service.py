@@ -28,10 +28,10 @@ def validate_name(name, max_length=100):
     name = unicodedata.normalize("NFC", name).strip()
 
     if not name or len(name) > max_length:
-      raise FolderError(
-        f"name must contain 1 to {max_length} characters.",
-        400,
-       )
+        raise FolderError(
+            f"name must contain 1 to {max_length} characters.",
+            400,
+        )
 
     if (
         name in (".", "..")
@@ -151,9 +151,6 @@ def list_roots_service(user_id):
             for key, _ in ROOTS
             if key in existing
         ]
-
-
-
 
 def open_folder_service(
     user_id, folder_id, limit=100, offset=0

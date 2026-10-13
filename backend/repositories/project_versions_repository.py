@@ -1,6 +1,12 @@
 """SQL for file versions. All calls use the caller's transaction."""
+
 VERSION_COLUMNS = """
-    id, file_id, version_number, file_size, created_by, created_at
+    id,
+    file_id,
+    version_number,
+    file_size,
+    created_by,
+    created_at
 """
 
 
@@ -9,11 +15,21 @@ def get_owned_file_repo(cursor, student_id, folder_id, project_id, file_id):
     # The file's folder_id is not used here: it may be NULL or a future subfolder.
     cursor.execute(
         """
-        SELECT f.id, f.project_id, f.folder_id, f.file_name, f.file_type,
-               f.file_size, f.current_path, f.created_at, f.updated_at,
-               f.deleted_at, f.status
+        SELECT
+            f.id,
+            f.project_id,
+            f.folder_id,
+            f.file_name,
+            f.file_type,
+            f.file_size,
+            f.current_path,
+            f.created_at,
+            f.updated_at,
+            f.deleted_at,
+            f.status
         FROM tblprojectfiles f
-        JOIN tblprojects p ON p.id = f.project_id
+        JOIN tblprojects p
+            ON p.id = f.project_id
         WHERE f.id = %s
           AND f.project_id = %s
           AND p.folder_id = %s
@@ -22,7 +38,8 @@ def get_owned_file_repo(cursor, student_id, folder_id, project_id, file_id):
           AND p.deleted_at IS NULL
           AND f.status = 'Active'
           AND f.deleted_at IS NULL
-        LIMIT 1 FOR UPDATE
+        LIMIT 1
+        FOR UPDATE
         """,
         (file_id, project_id, folder_id, student_id),
     )
@@ -32,7 +49,8 @@ def get_owned_file_repo(cursor, student_id, folder_id, project_id, file_id):
 def latest_version_number_repo(cursor, file_id):
     cursor.execute(
         """
-        SELECT COALESCE(MAX(version_number), 0) AS latest_number
+        SELECT
+            COALESCE(MAX(version_number), 0) AS latest_number
         FROM tblprojectversions
         WHERE file_id = %s
         """,
@@ -47,8 +65,12 @@ def insert_version_repo(
     cursor.execute(
         """
         INSERT INTO tblprojectversions (
-            file_id, version_number, file_path,
-            file_size, created_by, created_at
+            file_id,
+            version_number,
+            file_path,
+            file_size,
+            created_by,
+            created_at
         )
         VALUES (%s, %s, %s, %s, %s, UTC_TIMESTAMP())
         """,

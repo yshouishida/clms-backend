@@ -200,4 +200,4 @@ def upload_project_files_service(
                     "Could not remove a failed upload"
                 )
 
-        raise  
+        raise

@@ -10,8 +10,13 @@ ROOT_KEYS = {
 }
 
 FOLDER_COLUMNS = """
-    id, student_id, parent_folder_id, folder_name,
-    created_at, deleted_at, status
+    id,
+    student_id,
+    parent_folder_id,
+    folder_name,
+    created_at,
+    deleted_at,
+    status
 """
 
 
@@ -30,12 +35,18 @@ def require_active_student_repo(cursor, user_id):
     # Lock the account row while its folder transaction runs.
     cursor.execute(
         """
-        SELECT u.status, r.role_name, s.id AS student_id
+        SELECT
+            u.status,
+            r.role_name,
+            s.id AS student_id
         FROM tblUsers u
-        JOIN tblRoles r ON r.id = u.role_id
-        LEFT JOIN tblStudents s ON s.user_id = u.id
+        JOIN tblRoles r
+            ON r.id = u.role_id
+        LEFT JOIN tblStudents s
+            ON s.user_id = u.id
         WHERE u.id = %s
-        LIMIT 1 FOR UPDATE
+        LIMIT 1
+        FOR UPDATE
         """,
         (user_id,),
     )
@@ -153,7 +164,8 @@ def sibling_name_exists_repo(
     # Retained deleted/archived names remain reserved for now.
     cursor.execute(
         """
-        SELECT folder_name
+        SELECT
+            folder_name
         FROM tblFolders
         WHERE student_id = %s
           AND parent_folder_id = %s

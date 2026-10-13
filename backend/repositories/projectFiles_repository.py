@@ -3,9 +3,16 @@ def get_active_project_repo(
 ):
     cursor.execute(
         """
-        SELECT id, student_id, folder_id, project_name,
-               description, created_at, updated_at,
-               deleted_at, status
+        SELECT
+            id,
+            student_id,
+            folder_id,
+            project_name,
+            description,
+            created_at,
+            updated_at,
+            deleted_at,
+            status
         FROM tblprojects
         WHERE id = %s
           AND student_id = %s
@@ -25,9 +32,16 @@ def list_project_files_repo(
 ):
     cursor.execute(
         """
-        SELECT id, project_id, folder_id,
-               file_name, file_type, file_size,
-               created_at, updated_at, status
+        SELECT
+            id,
+            project_id,
+            folder_id,
+            file_name,
+            file_type,
+            file_size,
+            created_at,
+            updated_at,
+            status
         FROM tblprojectfiles
         WHERE project_id = %s
           AND status = 'Active'
@@ -40,10 +54,12 @@ def list_project_files_repo(
 
     return cursor.fetchall()
 
+
 def file_name_exists_repo(cursor, project_id, file_name):
     cursor.execute(
         """
-        SELECT id
+        SELECT
+            id
         FROM tblprojectfiles
         WHERE project_id = %s
           AND file_name = %s
@@ -91,9 +107,16 @@ def insert_project_file_repo(
 
     cursor.execute(
         """
-        SELECT id, project_id, folder_id,
-               file_name, file_type, file_size,
-               created_at, updated_at, status
+        SELECT
+            id,
+            project_id,
+            folder_id,
+            file_name,
+            file_type,
+            file_size,
+            created_at,
+            updated_at,
+            status
         FROM tblprojectfiles
         WHERE id = %s
           AND project_id = %s

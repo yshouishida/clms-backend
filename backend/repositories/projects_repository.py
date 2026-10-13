@@ -1,16 +1,19 @@
 
-
-
-
-
 def list_projects_in_folder_repo(
     cursor, student_id, folder_id, limit, offset
 ):
     cursor.execute(
         """
-        SELECT id, student_id, folder_id, project_name,
-               description, created_at, updated_at,
-               deleted_at, status
+        SELECT
+            id,
+            student_id,
+            folder_id,
+            project_name,
+            description,
+            created_at,
+            updated_at,
+            deleted_at,
+            status
         FROM tblprojects
         WHERE folder_id = %s
           AND student_id = %s
@@ -23,12 +26,14 @@ def list_projects_in_folder_repo(
 
     return cursor.fetchall()
 
+
 def project_name_exists_repo(
     cursor, student_id, folder_id, project_name
 ):
     cursor.execute(
         """
-        SELECT id
+        SELECT
+            id
         FROM tblprojects
         WHERE student_id = %s
           AND folder_id = %s
@@ -62,9 +67,16 @@ def insert_project_repo(
 
     cursor.execute(
         """
-        SELECT id, student_id, folder_id, project_name,
-               description, created_at, updated_at,
-               deleted_at, status
+        SELECT
+            id,
+            student_id,
+            folder_id,
+            project_name,
+            description,
+            created_at,
+            updated_at,
+            deleted_at,
+            status
         FROM tblprojects
         WHERE id = %s
           AND student_id = %s
