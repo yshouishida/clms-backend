@@ -7,7 +7,7 @@ from backend.repositories.auth_repository import (
 )
 
 
-def login_service(username, password, ip_address=None):
+def verify_credentials_service(username, password):
     if not isinstance(username, str) or not isinstance(password, str):
         return None
 
@@ -33,6 +33,13 @@ def login_service(username, password, ip_address=None):
         return None
 
     user.pop("password_hash", None)
+    return user
+
+
+def login_service(username, password, ip_address=None):
+    user = verify_credentials_service(username, password)
+    if user is None:
+        return None
 
     access_token = create_access_token(
         str(user["id"]),
@@ -69,4 +76,4 @@ def logout_service(user_id, jti, ip_address=None):
     )
 
     return True
-    
+

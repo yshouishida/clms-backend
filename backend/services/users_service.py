@@ -11,8 +11,8 @@ def get_users_service():
 
     return users
 
-def get_user_by_id_service(id):
-    user = get_user_by_id_repo(id)
+def get_user_by_id_service(id, include_admin=False):
+    user = get_user_by_id_repo(id, include_admin)
 
     if user is None:
         return None

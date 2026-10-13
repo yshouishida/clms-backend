@@ -4,14 +4,22 @@ from functools import wraps
 from datetime import datetime, timedelta, timezone
 from flask import request, g
 from backend.utils.api_response import error
+from backend.utils.domain_error import DomainError
 from backend.utils.jwt_token_blocklist import TOKEN_BLOCKLIST
+from backend.repositories.auth_repository import get_auth_identity_repo
 from backend.config.settings import (
-    JWT_SECRET_KEY, 
+    JWT_SECRET_KEY,
     JWT_ACCESS_TOKEN_EXPIRES
 )
 
 
-def create_access_token(identity, role):
+def validate_jwt_configuration():
+    if not isinstance(JWT_SECRET_KEY, str) or len(JWT_SECRET_KEY) < 32:
+        raise DomainError("Authentication is temporarily unavailable.", 503)
+
+
+def create_access_token(identity, role, session_id=None):
+    validate_jwt_configuration()
     jti = str(uuid.uuid4())
     payload = {
         "sub": str(identity),
@@ -19,6 +27,8 @@ def create_access_token(identity, role):
         "exp": datetime.now(timezone.utc) + timedelta(seconds=JWT_ACCESS_TOKEN_EXPIRES),
         "role": role
     }
+    if session_id is not None:
+        payload["session_id"] = session_id
     token = jwt.encode(payload, JWT_SECRET_KEY, algorithm="HS256")
     return token
 
@@ -31,26 +41,42 @@ def token_required(f):
 
         if not auth_header or not auth_header.startswith("Bearer "):
             return error("Authorization is required.", 401)
-        token = auth_header.split(" ")[1]
+        token = auth_header[7:].strip()
 
         try:
-            payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=["HS256"])
-            jti  = payload.get("jti")
+            validate_jwt_configuration()
+            payload = jwt.decode(
+                token,
+                JWT_SECRET_KEY,
+                algorithms=["HS256"],
+                options={"require": ["exp", "sub", "jti", "role"]}
+            )
+            jti = payload.get("jti")
 
-            if jti in TOKEN_BLOCKLIST:
+            if not isinstance(jti, str) or not jti or jti in TOKEN_BLOCKLIST:
                 return error("Token has been revoked.", 401)
 
             g.jti = jti
             g.user_id = int(payload.get("sub"))
-            g.user_role = payload.get("role")
+            if g.user_id < 1:
+                return error("Invalid token.", 401)
+            identity = get_auth_identity_repo(g.user_id)
+            if not identity or identity["status"] != "Active":
+                return error("Account is not active.", 401)
+            if identity["role_name"] != payload.get("role"):
+                return error("Token role is no longer valid.", 401)
+            g.user_role = identity["role_name"]
             g.jwt_payload = payload
 
-            
+
         except jwt.ExpiredSignatureError:
             return error("Token has been expired. Please login again.", 401)
-        
-        except jwt.InvalidTokenError:
+
+        except (jwt.InvalidTokenError, TypeError, ValueError):
             return error("Invalid token.", 401)
+
+        except Exception:
+            return error("Authentication is temporarily unavailable.", 503)
 
         return f(*args, **kwargs)
 
@@ -85,8 +111,8 @@ def role_required(*allowed_roles):
 
     return decorator
 
-            
-            
+
+
 
 
 

@@ -11,7 +11,7 @@ def login_repo(username):
         with conn.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT 
+                SELECT
                     u.id,
                     u.account_id,
                     u.first_name,
@@ -21,6 +21,7 @@ def login_repo(username):
                     u.password_hash,
                     u.status,
                     r.role_name,
+                    s.id AS student_id,
                     s.student_number,
                     s.program,
                     s.year_level,
@@ -33,18 +34,44 @@ def login_repo(username):
                     ON s.user_id = u.id
                 LEFT JOIN tblInstructors i
                     ON i.user_id = u.id
-                WHERE u.username = %s
+                WHERE u.username = %s OR u.email = %s
+                ORDER BY CASE WHEN u.username = %s THEN 0 ELSE 1 END
                 LIMIT 1
                 """,
-                (username,)
+                (username, username, username)
             )
+
             return cursor.fetchone()
-        
-    except Exception as e:
-        print(f"Error: {e}")
-        
+
     finally:
-        if conn: conn.close()
+        if conn:
+            conn.close()
+
+
+def get_auth_identity_repo(user_id):
+    conn = get_connection()
+
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    u.id,
+                    u.status,
+                    r.role_name
+                FROM tblUsers u
+                JOIN tblRoles r
+                    ON r.id = u.role_id
+                WHERE u.id = %s
+                """,
+                (user_id,)
+            )
+
+            return cursor.fetchone()
+
+    finally:
+        conn.close()
+
 
 def record_auth_event_repo(
     user_id,
@@ -82,10 +109,11 @@ def record_auth_event_repo(
                     description,
                     ip_address,
                     datetime.now(),
-                ),
+                )
             )
 
         conn.commit()
+
         return True
 
     except Exception as e:
@@ -99,4 +127,3 @@ def record_auth_event_repo(
     finally:
         if conn:
             conn.close()
-            

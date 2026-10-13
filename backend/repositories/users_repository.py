@@ -1,5 +1,6 @@
 from backend.database.connection import get_connection
 
+
 def get_users_repo():
     conn = None
 
@@ -31,28 +32,30 @@ def get_users_repo():
                     i.id AS instructor_id,
                     i.employee_number
                 FROM tblUsers u
-                INNER JOIN tblRoles r ON r.id = u.role_id
-                LEFT JOIN tblStudents s ON s.user_id = u.id
-                LEFT JOIN tblInstructors i ON i.user_id = u.id
+                INNER JOIN tblRoles r
+                    ON r.id = u.role_id
+                LEFT JOIN tblStudents s
+                    ON s.user_id = u.id
+                LEFT JOIN tblInstructors i
+                    ON i.user_id = u.id
                 WHERE NOT r.role_name = 'Admin'
                 """
             )
-            users = cursor.fetchall() 
+            users = cursor.fetchall()
 
             for user in users:
-                if user: 
+                if user:
                     user["created_at"] = user["created_at"].isoformat()
                     user["updated_at"] = user["updated_at"].isoformat()
 
             return users
 
-    except Exception as e:
-        print(f"Error: {e}")        
     finally:
-        if conn: conn.close()
+        if conn:
+            conn.close()
 
 
-def get_user_by_id_repo(id):
+def get_user_by_id_repo(id, include_admin=False):
     conn = None
 
     try:
@@ -83,26 +86,24 @@ def get_user_by_id_repo(id):
                     i.id AS instructor_id,
                     i.employee_number
                 FROM tblUsers u
-                INNER JOIN tblRoles r ON r.id = u.role_id
-                LEFT JOIN tblStudents s ON s.user_id = u.id
-                LEFT JOIN tblInstructors i ON i.user_id = u.id
-                WHERE u.id = %s
+                INNER JOIN tblRoles r
+                    ON r.id = u.role_id
+                LEFT JOIN tblStudents s
+                    ON s.user_id = u.id
+                LEFT JOIN tblInstructors i
+                    ON i.user_id = u.id
+                WHERE u.id = %s AND (%s = 1 OR r.role_name <> 'Admin')
                 """,
-                (id,)
+                (id, int(include_admin))
             )
             user = cursor.fetchone()
-            if user: 
+
+            if user:
                 user["created_at"] = user["created_at"].isoformat()
                 user["updated_at"] = user["updated_at"].isoformat()
 
             return user
 
-    except Exception as e:
-        print(f"Error: {e}")        
     finally:
-        if conn: conn.close()
-
-
-
-
-        
+        if conn:
+            conn.close()

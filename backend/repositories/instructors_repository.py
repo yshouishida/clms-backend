@@ -27,19 +27,20 @@ def get_instructiors_repo():
                     u.updated_at,
                     u.date_disabled
                 FROM tblInstructors i
-                INNER JOIN tblUsers u ON u.id = i.user_id
-                INNER JOIN tblRoles r ON r.id = u.role_id
+                INNER JOIN tblUsers u
+                    ON u.id = i.user_id
+                INNER JOIN tblRoles r
+                    ON r.id = u.role_id
                 WHERE r.role_name = 'Instructor'
                 """
             )
 
             return cursor.fetchall()
-        
-    except Exception as e:
-        print(f"Error: {e}")
 
     finally:
-        if conn: conn.close()
+        if conn:
+            conn.close()
+
 
 def get_by_id_repo(id):
     conn = None
@@ -60,18 +61,23 @@ def get_by_id_repo(id):
                     u.email,
                     u.status AS user_status
                 FROM tblInstructors AS i
-                JOIN tblUsers AS u ON u.id = i.user_id
-                WHERE i.id = %s
+                JOIN tblUsers AS u
+                    ON u.id = i.user_id
+                WHERE i.id = %s AND u.role_id IN
+                    (
+                        SELECT id
+                        FROM tblRoles
+                        WHERE role_name = 'Instructor'
+                    )
                 """,
                 (id,)
             )
             return cursor.fetchone()
-        
-    except Exception as e:
-        print(f"Error: {e}")
 
     finally:
-        if conn:conn.close()
+        if conn:
+            conn.close()
+
 
 def add_instructor_repo(
     account_id,
@@ -81,7 +87,7 @@ def add_instructor_repo(
     username,
     password_hash,
     role_id,
-    employee_number
+    employee_number,
 ):
     conn = None
 
@@ -90,6 +96,19 @@ def add_instructor_repo(
         conn.begin()
 
         with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT role_name
+                FROM tblRoles
+                WHERE id = %s
+                """,
+                (role_id,)
+            )
+            role = cursor.fetchone()
+
+            if not role or role["role_name"] != "Instructor":
+                raise ValueError("role_id must refer to the Instructor role.")
+
             cursor.execute(
                 """
                 INSERT INTO tblUsers (
@@ -150,9 +169,6 @@ def add_instructor_repo(
         if conn is not None:
             conn.close()
 
-#===============================================
-# UPDATE INSTRUCTOR
-#===============================================
 def update_instructor_repo(
     instructor_id,
     account_id,
@@ -160,7 +176,7 @@ def update_instructor_repo(
     last_name,
     email,
     username,
-    employee_number
+    employee_number,
 ):
     conn = None
 
@@ -171,9 +187,11 @@ def update_instructor_repo(
         with conn.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT i.user_id
+                SELECT
+                    i.user_id
                 FROM tblInstructors i
-                INNER JOIN tblUsers u ON u.id = i.user_id
+                INNER JOIN tblUsers u
+                    ON u.id = i.user_id
                 WHERE i.id = %s
                 FOR UPDATE
                 """,
@@ -240,9 +258,6 @@ def update_instructor_repo(
             conn.close()
 
 
-#===============================================
-# SOFT DELETE INSTRUCTOR
-#===============================================
 def delete_instructor_repo(instructor_id):
     conn = None
 
@@ -257,7 +272,8 @@ def delete_instructor_repo(instructor_id):
                     i.user_id,
                     u.status
                 FROM tblInstructors i
-                INNER JOIN tblUsers u ON u.id = i.user_id
+                INNER JOIN tblUsers u
+                    ON u.id = i.user_id
                 WHERE i.id = %s
                 FOR UPDATE
                 """,

@@ -1,7 +1,7 @@
 from flask import Blueprint
 
 from backend.utils.jwt import token_required, role_required
-from backend.controllers.students_control import (
+from backend.controllers.students_controller import (
     get_students_control,
     get_by_id_control,
     add_student_control,

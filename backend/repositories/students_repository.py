@@ -1,8 +1,6 @@
 from backend.database.connection import get_connection
 
-#===============================================
-# GET STUDENTS
-#===============================================
+
 def get_students_repo():
     conn = None
 
@@ -32,9 +30,11 @@ def get_students_repo():
                     u.updated_at,
                     u.date_disabled
                 FROM tblStudents s
-                INNER JOIN tblUsers u ON u.id = s.user_id
-                INNER JOIN tblRoles r ON r.id = u.role_id
-                WHERE NOT r.role_name = 'Admin'
+                INNER JOIN tblUsers u
+                    ON u.id = s.user_id
+                INNER JOIN tblRoles r
+                    ON r.id = u.role_id
+                WHERE r.role_name = 'Student'
                 """
             )
             students = cursor.fetchall()
@@ -45,16 +45,12 @@ def get_students_repo():
                     student["updated_at"] = student["updated_at"].isoformat()
 
             return students
-    except Exception as e:
 
-        print(f"Error: {e}")
-        
     finally:
-        if conn: conn.close()
+        if conn:
+            conn.close()
 
-#===============================================
-# GET STUDENTS BY ID
-#===============================================
+
 def get_by_id_repo(id):
     conn = None
 
@@ -84,9 +80,11 @@ def get_by_id_repo(id):
                     u.updated_at,
                     u.date_disabled
                 FROM tblStudents s
-                INNER JOIN tblUsers u ON u.id = s.user_id
-                INNER JOIN tblRoles r ON r.id = u.role_id
-                WHERE s.id = %s AND NOT r.role_name = 'Admin'
+                INNER JOIN tblUsers u
+                    ON u.id = s.user_id
+                INNER JOIN tblRoles r
+                    ON r.id = u.role_id
+                WHERE s.id = %s AND r.role_name = 'Student'
                 """,
                 (id,)
             )
@@ -97,14 +95,11 @@ def get_by_id_repo(id):
                 student["updated_at"] = student["updated_at"].isoformat()
 
             return student
-    except Exception as e:
-        print(f"Error: {e}")
     finally:
-        if conn:conn.close()
+        if conn:
+            conn.close()
 
-#===============================================
-# ADD STUDENT
-#===============================================
+
 def add_student_repo(
     account_id,
     first_name,
@@ -116,7 +111,7 @@ def add_student_repo(
     student_number,
     program,
     year_level,
-    section
+    section,
 ):
     conn = None
 
@@ -125,6 +120,19 @@ def add_student_repo(
         conn.begin()
 
         with conn.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT role_name
+                FROM tblRoles
+                WHERE id = %s
+                """,
+                (role_id,)
+            )
+            role = cursor.fetchone()
+
+            if not role or role["role_name"] != "Student":
+                raise ValueError("role_id must refer to the Student role.")
+
             cursor.execute(
                 """
                 INSERT INTO tblUsers (
@@ -179,17 +187,16 @@ def add_student_repo(
             "user_id": user_id,
             "student_id": student_id
         }
-    except Exception as e:
-        if conn: conn.rollback()
-        print(f"Error: {e}")
+    except Exception:
+        if conn:
+            conn.rollback()
+        raise
 
     finally:
-        if conn: conn.close()
-        
+        if conn:
+            conn.close()
 
-#===============================================
-# UPDATE STUDENT
-#===============================================
+
 def update_student_repo(
     student_id,
     account_id,
@@ -200,7 +207,7 @@ def update_student_repo(
     student_number,
     program,
     year_level,
-    section
+    section,
 ):
     conn = None
 
@@ -211,9 +218,11 @@ def update_student_repo(
         with conn.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT s.user_id
+                SELECT
+                    s.user_id
                 FROM tblStudents s
-                INNER JOIN tblUsers u ON u.id = s.user_id
+                INNER JOIN tblUsers u
+                    ON u.id = s.user_id
                 WHERE s.id = %s
                 FOR UPDATE
                 """,
@@ -287,66 +296,32 @@ def update_student_repo(
             conn.close()
 
 
-#===============================================
-# DELETE STUDENT
-#===============================================
 def delete_student_repo(student_id):
-    conn = None
+    from backend.repositories.account_repository import set_account_status_repo
+
+    conn = get_connection()
 
     try:
-        conn = get_connection()
-        conn.begin()
-
         with conn.cursor() as cursor:
             cursor.execute(
                 """
-                SELECT
-                    s.user_id,
-                    u.status
-                FROM tblStudents s
-                INNER JOIN tblUsers u ON u.id = s.user_id
-                WHERE s.id = %s
-                FOR UPDATE
+                SELECT user_id
+                FROM tblStudents
+                WHERE id = %s
                 """,
                 (student_id,)
             )
-
             student = cursor.fetchone()
 
-            if student is None:
-                conn.rollback()
-                return None
-
-            user_id = student["user_id"]
-
-            # Preserve the original date if already disabled.
-            if student["status"] == "Active":
-                cursor.execute(
-                    """
-                    UPDATE tblUsers
-                    SET
-                        status = 'Disabled',
-                        date_disabled = CURRENT_TIMESTAMP,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE id = %s
-                    """,
-                    (user_id,)
-                )
-
-        conn.commit()
-
-        return {
-            "user_id": user_id,
-            "student_id": student_id,
-            "account_status": "Disabled"
-        }
-
-    except Exception:
-        if conn is not None:
-            conn.rollback()
-
-        raise
-
     finally:
-        if conn is not None:
-            conn.close()
+        conn.close()
+
+    if student is None:
+        return None
+
+    set_account_status_repo(student["user_id"], "Disabled")
+    return {
+        "user_id": student["user_id"],
+        "student_id": student_id,
+        "account_status": "Disabled"
+    }

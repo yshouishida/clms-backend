@@ -61,8 +61,8 @@ def add_student_control():
 
     password = user_input.get("password")
 
-    if not isinstance(password, str) or not password:
-        return error("Password is required and must be a string.", 400)
+    if not isinstance(password, str) or len(password) < 8:
+        return error("Password must be a string of at least 8 characters.", 400)
 
     role_id = user_input.get("role_id")
     year_level = user_input.get("year_level")
@@ -112,6 +112,9 @@ def add_student_control():
             return error("The selected role does not exist.", 400)
 
         raise
+
+    except ValueError as exc:
+        return error(str(exc), 400)
 
     return success("Student added successfully!", 201, result)
 
