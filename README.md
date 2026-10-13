@@ -1,77 +1,66 @@
 # CLMS Backend
 
+Flask backend for the Computer Laboratory Workspace, Project Repository, and PC Monitoring System.
+
 ## Start the server
 
-The project uses Python 3, Flask, and a MySQL database. Run these commands in PowerShell from the `clms-backend` directory.
+Run these commands in PowerShell from the repository root. Python 3.9+ and MySQL or MariaDB are required. The repository has no dependency manifest or production server configuration.
 
-1. Create a virtual environment and install the packages imported by the project. There is currently no dependency manifest in the repository.
+1. Create a virtual environment and install the imported packages:
 
    ```powershell
    python -m venv backend/.venv
    .\backend\.venv\Scripts\python.exe -m pip install Flask python-dotenv PyMySQL PyJWT
    ```
 
-2. Make sure MySQL is running and that `DB_NAME` refers to a database with the application's tables. This repository does not include a table creation or migration script.
+2. Create a database using your MySQL client, then run [Database_Design_V04.sql](backend/database/Database_Design_V04.sql) against it. Insert one row for each `tblRoles.role_name`: `Admin`, `Student`, and `Instructor`. The schema does not seed these roles. This SQL file is present in the current workspace but ignored by Git, so a new checkout needs a copy of it.
 
-3. Create `backend/.env` if it does not already exist:
+3. Copy the environment template and set every value in `backend/.env` using `KEY=value` syntax:
 
    ```powershell
    if (-not (Test-Path backend\.env)) { Copy-Item backend\.env.example backend\.env }
    ```
 
-   Edit `backend/.env` so every name listed in `.env.example` has a value in `KEY=value` format. For example, replace the placeholders below with your database settings and secret:
+   Required names are `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `JWT_SECRET_KEY`, `JWT_ACCESS_TOKEN_EXPIRES`, and `WORKSTATION_API_KEY`. `DB_PORT` and `JWT_ACCESS_TOKEN_EXPIRES` are integers. Use separate random secrets of at least 32 characters for the JWT and workstation keys. Workstation login returns `503` until its key is configured; authentication returns `503` if the JWT key is too short.
 
-   ```dotenv
-   DB_HOST=127.0.0.1
-   DB_PORT=3306
-   DB_NAME=your_database_name
-   DB_USER=your_database_user
-   DB_PASSWORD=your_database_password
-   JWT_SECRET_KEY=replace-with-a-random-secret
-   JWT_TOKEN_EXPIRES=3600
+4. If the database has no administrator, create the first one with the bootstrap script. It prompts for the password without echo:
+
+   ```powershell
+   .\backend\.venv\Scripts\python.exe create_user.py admin-001 First Last admin@example.com admin
    ```
 
-   `DB_PORT` and `JWT_TOKEN_EXPIRES` must be integers because the code converts both with `int(...)`. The `.env.example` file lists names only, so it must be filled in before use.
-
-4. Start the development server:
+5. Start the development server:
 
    ```powershell
    .\backend\.venv\Scripts\python.exe run.py
    ```
 
-   Flask serves the application at `http://127.0.0.1:5000` by default. Stop it with `Ctrl+C`. `run.py` enables debug mode; the repository does not currently define a production server command.
+   `run.py` starts Flask at `http://127.0.0.1:5000` with debug mode disabled. Set `FLASK_DEBUG=1` only for local debugging. No production server command is defined in this repository.
+
+For student workstation login, RFID scanning, logout, and session recovery, see [Workstation and RFID API](backend/WORKSTATION_API.md).
 
 ## Project Structure
 
 ```text
 clms-backend/
-├── README.md                              # Setup instructions and project map
-├── run.py                                 # Creates and starts the Flask development app
-└── backend/                               # Application package
-    ├── .env.example                       # Required environment variable names
-    ├── .gitignore                         # Ignores local secrets, caches, and the views script
-    ├── __init__.py                        # App factory and registered blueprints
-    ├── config/                            # Application settings
-    │   └── settings.py                    # Reads JWT settings from the environment
-    ├── controllers/                       # HTTP request and response handling
-    │   ├── instructors_control.py         # Instructor request handlers
-    │   └── students_control.py            # Student request handlers
-    ├── database/                          # Database access and SQL scripts
-    │   ├── connection.py                  # Creates PyMySQL connections
-    │   └── views.sql                      # Local SQL views; ignored by Git
-    ├── repositories/                      # Database queries
-    │   ├── instructors_repository.py      # Instructor queries
-    │   ├── students_repository.py         # Student queries
-    │   └── users_repository.py            # User queries
-    ├── routes/                            # Flask blueprints and URL routes
-    │   ├── auth_route.py                  # Authentication route stub; not registered
-    │   ├── instructors_route.py           # Instructor endpoints
-    │   ├── students_route.py              # Student endpoints
-    │   └── users_route.py                 # Users blueprint; no endpoints defined yet
-    ├── services/                          # Business logic between controllers and queries
-    │   ├── instructors_service.py         # Instructor operations
-    │   └── students_service.py            # Student operations
-    └── utils/                             # Shared helpers
-        ├── api_response.py                # JSON success and error responses
-        └── jwt.py                         # JWT creation and access decorators
+|-- README.md                          Setup and project map
+|-- create_user.py                     Interactive first administrator bootstrap
+|-- run.py                             Flask development entry point
+|-- tests/                             Disposable V04 database integration tests
+`-- backend/
+    |-- .env.example                   Environment variable names
+    |-- __init__.py                    App factory and blueprint registration
+    |-- WORKSTATION_API.md             Desktop client API contract
+    |-- config/settings.py             JWT settings
+    |-- controllers/                   Request validation and API responses
+    |-- database/
+    |   |-- connection.py              PyMySQL connection settings
+    |   |-- Database_Design_V04.sql    Authoritative table definitions
+    |   `-- views.sql                  Local SQL views (ignored by Git)
+    |-- repositories/                  Parameterized database operations
+    |-- routes/                        Flask URL and permission declarations
+    |-- services/                      Authentication and business rules
+    `-- utils/                         JWT, response, and error helpers
 ```
+
+Accounts, RFID cards, and laboratory sessions follow the same controller, service, repository, and route layout as the existing modules. The relevant files use `users`, `students`, `instructors`, `auth`, `rfid`, `account`, and `laboratory_sessions` in their names.
