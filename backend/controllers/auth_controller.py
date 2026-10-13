@@ -2,6 +2,8 @@ from flask import g, request
 
 from backend.utils.api_response import error, success
 from backend.services.auth_service import login_service, logout_service
+from backend.services.laboratory_sessions_service import finish_session_service
+from backend.utils.domain_error import DomainError
 
 
 def login_control():
@@ -19,7 +21,10 @@ def login_control():
     if not username.strip() or not password:
         return error("Username and password are required.", 400)
 
-    result = login_service(username, password, request.remote_addr)
+    try:
+        result = login_service(username, password, request.remote_addr)
+    except Exception:
+        return error("Authentication is temporarily unavailable.", 503)
 
     if result is None:
         return error("Invalid username or password.", 401)
@@ -28,6 +33,15 @@ def login_control():
 
 
 def logout_control():
+    session_id = g.jwt_payload.get("session_id")
+    if session_id is not None:
+        try:
+            finish_session_service(session_id, g.user_id, g.user_role)
+        except DomainError as exc:
+            return error(str(exc), exc.status_code)
+        except Exception:
+            return error("Laboratory session logout failed.", 500)
+
     logged_out = logout_service(
         user_id=g.user_id,
         jti=g.jti,

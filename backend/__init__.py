@@ -1,6 +1,8 @@
 from flask import Flask
 from werkzeug.exceptions import RequestEntityTooLarge
+from pymysql import MySQLError
 from backend.utils.api_response import error
+
 
 def create_app():
     app = Flask(__name__)
@@ -12,9 +14,13 @@ def create_app():
 
     @app.errorhandler(RequestEntityTooLarge)
     def handle_large_upload(exc):
-     return error("Upload request is too large.", 413)
+        return error("Upload request is too large.", 413)
 
-    
+    @app.errorhandler(MySQLError)
+    def handle_database_error(exc):
+        return error("Database operation failed.", 500)
+
+
 
     from backend.routes.instructors_route import instructors_bp
     from backend.routes.students_route import students_bp
@@ -26,7 +32,9 @@ def create_app():
     from backend.routes.project_versions_route import project_versions_bp
     from backend.routes.classes_route import classes_bp
     from backend.routes.activities_route import activities_bp
-   
+    from backend.routes.rfid_route import rfid_bp
+    from backend.routes.laboratory_sessions_route import laboratory_sessions_bp
+
 
     app.register_blueprint(instructors_bp)
     app.register_blueprint(students_bp)
@@ -38,7 +46,9 @@ def create_app():
     app.register_blueprint(project_versions_bp)
     app.register_blueprint(classes_bp)
     app.register_blueprint(activities_bp)
-    
+    app.register_blueprint(rfid_bp)
+    app.register_blueprint(laboratory_sessions_bp)
+
 
     return app
 
