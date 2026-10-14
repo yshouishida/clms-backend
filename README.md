@@ -39,6 +39,8 @@ Run these commands in PowerShell from the repository root. Python 3.9+ and MySQL
 
 For student workstation login, RFID scanning, logout, and session recovery, see [Workstation and RFID API](backend/WORKSTATION_API.md).
 
+For laboratory/hardware management, per-PC agent credentials, monitoring configuration, and snapshot uploads, see [Monitoring API](backend/MONITORING_API.md). Copy the proposed timing values from `.env.example` and provision unique agent credentials before enabling monitoring. Review the [backend monitoring audit](backend/MONITORING_AUDIT.md) for test results and integration limitations.
+
 ## Project Structure
 
 ```text
@@ -51,6 +53,8 @@ clms-backend/
     |-- .env.example                   Environment variable names
     |-- __init__.py                    App factory and blueprint registration
     |-- WORKSTATION_API.md             Desktop client API contract
+    |-- MONITORING_API.md              Proposed agent and monitoring API contract
+    |-- MONITORING_AUDIT.md            Implementation review and verification results
     |-- config/settings.py             JWT settings
     |-- controllers/                   Request validation and API responses
     |-- database/
