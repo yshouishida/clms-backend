@@ -39,6 +39,8 @@ Run these commands in PowerShell from the repository root. Python 3.9+ and MySQL
 
 For student workstation login, RFID scanning, logout, and session recovery, see [Workstation and RFID API](backend/WORKSTATION_API.md).
 
+For activity file submissions, resubmission versions, and file access, see [Activity Submissions API](backend/ACTIVITY_SUBMISSIONS_API.md). Run its database migration after the base schema.
+
 For laboratory/hardware management, per-PC agent credentials, monitoring configuration, and snapshot uploads, see [Monitoring API](backend/MONITORING_API.md). Copy the proposed timing values from `.env.example` and provision unique agent credentials before enabling monitoring. Review the [backend monitoring audit](backend/MONITORING_AUDIT.md) for test results and integration limitations.
 
 ## Project Structure

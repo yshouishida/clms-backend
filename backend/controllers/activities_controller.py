@@ -1,7 +1,9 @@
-from flask import current_app, g, request
+from flask import current_app, g, request, send_file
 
 from backend.services import activities_service
 from backend.services.activities_service import ActivitiesError
+from backend.services import submissions_service
+from backend.services.submissions_service import SubmissionError
 from backend.utils.api_response import error, success
 
 
@@ -109,3 +111,80 @@ def archive_activity_control(activity_id):
         activity_id,
         "Archived",
     )
+
+
+def _submission_response(operation, message, *args):
+    try:
+        result = operation(*args)
+        status = 200
+        if isinstance(result, tuple):
+            result, status = result
+        return success(message, status, result)
+    except SubmissionError as exc:
+        return error(str(exc), exc.status_code)
+    except Exception:
+        current_app.logger.exception("Activity submission request failed")
+        return error("Unable to process activity submission.", 500)
+
+
+def submit_activity_control(activity_id):
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict) or set(body) != {"project_id", "file_ids"}:
+        return error("Send only project_id and file_ids.", 400)
+    return _submission_response(
+        submissions_service.submit_activity_service,
+        "Submission saved.",
+        g.user_id,
+        g.user_role,
+        activity_id,
+        body["project_id"],
+        body["file_ids"],
+    )
+
+
+def list_activity_submissions_control(activity_id):
+    return _submission_response(
+        submissions_service.list_activity_submissions_service,
+        "Activity submissions retrieved.",
+        g.user_id,
+        g.user_role,
+        activity_id,
+    )
+
+
+def list_submission_versions_control(submission_id):
+    return _submission_response(
+        submissions_service.list_submission_versions_service,
+        "Submission versions retrieved.",
+        g.user_id,
+        g.user_role,
+        submission_id,
+    )
+
+
+def download_submission_file_control(
+    submission_id, version_number, project_version_id
+):
+    try:
+        path, file_name = submissions_service.get_submission_file_service(
+            g.user_id, g.user_role, submission_id, version_number,
+            project_version_id,
+        )
+        response = send_file(
+            path,
+            mimetype="application/octet-stream",
+            as_attachment=True,
+            download_name=file_name,
+            conditional=False,
+        )
+        response.headers["Cache-Control"] = "private, no-store"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Content-Security-Policy"] = "default-src 'none'"
+        return response
+    except SubmissionError as exc:
+        return error(str(exc), exc.status_code)
+    except OSError:
+        return error("Submitted file is unavailable.", 404)
+    except Exception:
+        current_app.logger.exception("Submission file download failed")
+        return error("Unable to download submitted file.", 500)
