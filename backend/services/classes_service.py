@@ -1,7 +1,12 @@
 from contextlib import contextmanager
+import secrets
 
 from backend.database.connection import get_connection
 from backend.repositories import classes_repository as repo
+
+
+JOIN_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+JOIN_CODE_LENGTH = 10
 
 
 class ClassesError(Exception):
@@ -41,9 +46,8 @@ def _profile_id(cursor, user_id, role):
     return profile[key]
 
 
-def _class_fields(class_code, class_name, school_year, semester, description):
+def _class_fields(class_name, school_year, semester, description):
     text_fields = {
-        "class_code": (class_code, 30),
         "class_name": (class_name, 100),
         "school_year": (school_year, 20),
     }
@@ -100,24 +104,26 @@ def get_class_service(user_id, role, class_id):
 
 
 def create_class_service(
-    user_id, role, class_code, class_name, school_year, semester, description=None
+    user_id, role, class_name, school_year, semester, description=None
 ):
     fields = _class_fields(
-        class_code, class_name, school_year, semester, description
+        class_name, school_year, semester, description
     )
     if role != "Instructor":
         raise ClassesError("Only instructors can create classes.", 403)
 
     with classes_transaction() as cursor:
         instructor_id = _profile_id(cursor, user_id, role)
-        if repo.class_code_exists_repo(
-            cursor,
-            fields["class_code"],
-            fields["school_year"],
-            fields["semester"],
-            instructor_id,
-        ):
-            raise ClassesError("This class code already exists for the term.", 409)
+        for _ in range(5):
+            class_code = "".join(
+                secrets.choice(JOIN_CODE_ALPHABET)
+                for _ in range(JOIN_CODE_LENGTH)
+            )
+            if not repo.class_code_exists_repo(cursor, class_code):
+                fields["class_code"] = class_code
+                break
+        else:
+            raise ClassesError("Could not generate a unique class code. Retry.", 503)
 
         class_id = repo.insert_class_repo(cursor, instructor_id, fields)
         row = repo.get_class_repo(cursor, class_id, role, instructor_id)
@@ -127,13 +133,12 @@ def create_class_service(
 
 
 def update_class_service(
-    user_id, role, class_id, class_code, class_name, school_year, semester,
-    description=None,
+    user_id, role, class_id, class_name, school_year, semester, description=None,
 ):
     if type(class_id) is not int or class_id < 1:
         raise ClassesError("class_id must be a positive integer.")
     fields = _class_fields(
-        class_code, class_name, school_year, semester, description
+        class_name, school_year, semester, description
     )
     if role not in ("Admin", "Instructor"):
         raise ClassesError("Access denied.", 403)
@@ -144,15 +149,6 @@ def update_class_service(
         if existing is None:
             raise ClassesError("Class not found.", 404)
         owner_id = existing["instructor_id"]
-        if repo.class_code_exists_repo(
-            cursor,
-            fields["class_code"],
-            fields["school_year"],
-            fields["semester"],
-            owner_id,
-            exclude_id=class_id,
-        ):
-            raise ClassesError("This class code already exists for the term.", 409)
         repo.update_class_repo(
             cursor, class_id, instructor_id, fields, role == "Admin"
         )
@@ -202,6 +198,7 @@ def enroll_student_service(user_id, role, class_id, student_id):
 
     with classes_transaction() as cursor:
         profile_id = _profile_id(cursor, user_id, role)
+        repo.lock_class_repo(cursor, class_id)
         class_row = repo.get_class_repo(cursor, class_id, role, profile_id)
         if class_row is None:
             raise ClassesError("Class not found.", 404)
@@ -227,6 +224,50 @@ def enroll_student_service(user_id, role, class_id, student_id):
         if result is None:
             raise RuntimeError(f"Created class membership {member_id} was not found.")
         return _serialize(result)
+
+
+def join_class_service(user_id, role, class_code):
+    if role != "Student":
+        raise ClassesError("Only students can join a class with a code.", 403)
+    if not isinstance(class_code, str):
+        raise ClassesError("class_code must be text.")
+    class_code = class_code.strip().upper()
+    if (
+        len(class_code) != JOIN_CODE_LENGTH
+        or any(character not in JOIN_CODE_ALPHABET for character in class_code)
+    ):
+        raise ClassesError("class_code is invalid.")
+
+    with classes_transaction() as cursor:
+        student_id = _profile_id(cursor, user_id, role)
+        matches = repo.classes_by_code_repo(cursor, class_code)
+        if not matches:
+            raise ClassesError("Class code not found.", 404)
+        if len(matches) != 1:
+            raise ClassesError("Class code is ambiguous; contact the instructor.", 409)
+        class_row = matches[0]
+        if class_row["status"] != "Active":
+            raise ClassesError("This class is not accepting students.", 409)
+
+        member = repo.get_class_member_repo(
+            cursor, class_row["id"], student_id, for_update=True
+        )
+        if member is None:
+            repo.insert_class_member_repo(cursor, class_row["id"], student_id)
+        elif member["status"] == "Dropped":
+            repo.update_class_member_repo(
+                cursor, class_row["id"], student_id, "Enrolled"
+            )
+        else:
+            raise ClassesError("You already have a membership in this class.", 409)
+
+        membership = repo.get_class_member_repo(
+            cursor, class_row["id"], student_id
+        )
+        return {
+            "class": _serialize(class_row),
+            "membership": _serialize(membership),
+        }
 
 
 def update_class_member_service(user_id, role, class_id, student_id, status):

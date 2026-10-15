@@ -5,6 +5,7 @@ from backend.controllers.classes_controller import (
     create_class_control,
     enroll_student_control,
     get_class_control,
+    join_class_control,
     list_class_members_control,
     list_classes_control,
     update_class_control,
@@ -28,6 +29,13 @@ def list_classes():
 @role_required("Instructor")
 def create_class():
     return create_class_control()
+
+
+@classes_bp.post("/classes/join")
+@token_required
+@role_required("Student")
+def join_class():
+    return join_class_control()
 
 
 @classes_bp.route("/classes/<int:class_id>", methods=["GET"])
