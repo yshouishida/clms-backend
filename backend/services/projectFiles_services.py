@@ -201,3 +201,88 @@ def upload_project_files_service(
                 )
 
         raise
+
+def _safe_project_storage_path(path_value):
+    if not path_value:
+        raise FolderError("Stored file path is missing.", 409)
+    root = (Path(current_app.instance_path) / "project_uploads").resolve()
+    candidate = Path(path_value).resolve()
+    if not candidate.is_relative_to(root):
+        raise FolderError("Stored file path is outside project storage.", 409)
+
+    return candidate
+
+def _check_owned_project_file(cursor, student_id, folder_id, project_id, file_id):
+    folder, _ = folders_repo.get_active_folder_repo(
+        cursor, student_id, folder_id
+    )
+    if folders_repo.root_key(folder) != "PROJECT":
+        raise FolderError("Project root not found.", 404)
+
+    project = files_repo.get_active_project_repo(
+        cursor, student_id, folder_id, project_id
+    )
+    if project is None:
+        raise FolderError("Project not found.", 404)
+
+    file_row = files_repo.get_owned_project_file_repo(
+        cursor, student_id, folder_id, project_id, file_id
+    )
+    if file_row is None:
+        raise FolderError("File not found.", 404)
+
+    return file_row
+
+def download_project_file_service(user_id, folder_id, project_id, file_id):
+    with student_transaction(user_id) as (cursor, student_id):
+        row = _check_owned_project_file(
+            cursor, student_id, folder_id, project_id, file_id
+        )
+        path = _safe_project_storage_path(row["current_path"])
+        if not path.is_file():
+            raise FolderError("Stored file contents are missing.", 409)
+        return {
+            "path": str(path),
+            "file_name": row["file_name"],
+            "file_type": row["file_type"] or "application/octet-stream",
+        }
+
+def rename_project_file_service(
+    user_id, folder_id, project_id, file_id, new_file_name
+):
+    new_file_name, _ = validate_name(new_file_name, max_length=255)
+    with student_transaction(user_id) as (cursor, student_id):
+        row = _check_owned_project_file(
+            cursor, student_id, folder_id, project_id, file_id
+        )
+        if files_repo.file_name_exists_excluding_repo(
+            cursor, project_id, new_file_name, file_id
+        ):
+            raise FolderError(
+                "A file with that name already exists in this project.", 409
+            )
+        updated = files_repo.rename_project_file_repo(
+            cursor, project_id, file_id, new_file_name
+        )
+        if updated is None:
+            raise FolderError("File could not be renamed.", 409)
+        return file_data(updated)
+
+def delete_project_file_service(user_id, folder_id, project_id, file_id):
+    with student_transaction(user_id) as (cursor, student_id):
+        _check_owned_project_file(
+            cursor, student_id, folder_id, project_id, file_id
+        )
+        cursor.execute("SELECT UTC_TIMESTAMP() AS deleted_at")
+        deleted_at = cursor.fetchone()["deleted_at"]
+        result = files_repo.soft_delete_project_file_repo(
+            cursor, project_id, file_id, deleted_at
+        )
+        payload = file_data(result)
+        payload["deleted_at"] = (
+            deleted_at.isoformat() + "Z"
+            if hasattr(deleted_at, "isoformat")
+
+            else str(deleted_at)
+        )
+        return payload

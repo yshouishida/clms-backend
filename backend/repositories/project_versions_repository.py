@@ -115,3 +115,43 @@ def list_versions_repo(cursor, file_id, limit, offset):
         (file_id, limit + 1, offset),
     )
     return cursor.fetchall()
+
+def get_version_by_number_repo(cursor, file_id, version_number):
+    cursor.execute(
+        """
+        SELECT id, file_id, version_number, file_path, file_size,
+               created_by, created_at
+        FROM tblProjectVersions
+        WHERE file_id = %s AND version_number = %s
+        LIMIT 1
+        """,
+        (file_id, version_number),
+    )
+    return cursor.fetchone()
+
+def get_version_by_id_repo(cursor, file_id, version_id):
+    cursor.execute(
+        """
+        SELECT id, file_id, version_number, file_path, file_size,
+               created_by, created_at
+        FROM tblProjectVersions
+        WHERE file_id = %s AND id = %s
+        LIMIT 1
+        """,
+        (file_id, version_id),
+    )
+    return cursor.fetchone()
+
+def get_version_by_path_repo(cursor, file_id, file_path):
+    cursor.execute(
+        """
+        SELECT id, file_id, version_number, file_path, file_size,
+               created_by, created_at
+        FROM tblProjectVersions
+        WHERE file_id = %s AND file_path = %s
+        ORDER BY version_number DESC, id DESC
+        LIMIT 1
+        """,
+        (file_id, file_path),
+    )
+    return cursor.fetchone()
