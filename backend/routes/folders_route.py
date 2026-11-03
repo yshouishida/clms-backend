@@ -45,7 +45,7 @@ def open_folder(folder_id):
 def create_folder():
     return create_folder_control()
 
-@folders_bp.route("/folders/<int:folder_id>", methods=["PATCH"])
+@folders_bp.route("/folders/<int:folder_id>", methods=["PUT"])
 @token_required
 @role_required("Student")
 def rename_folder(folder_id):

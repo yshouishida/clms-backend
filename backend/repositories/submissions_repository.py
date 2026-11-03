@@ -32,7 +32,7 @@ def student_membership_repo(cursor, class_id, user_id):
 def owned_project_repo(cursor, project_id, student_id):
     cursor.execute(
         """
-        SELECT id, student_id, status, deleted_at
+        SELECT id, student_id, folder_id, status, deleted_at
         FROM tblProjects
         WHERE id = %s AND student_id = %s
         FOR UPDATE
@@ -108,19 +108,34 @@ def update_submission_repo(cursor, submission_id, project_id, status):
     )
 
 
-def latest_project_version_repo(cursor, file_id):
+def update_submission_review_state_repo(cursor, submission_id, status, remarks):
     cursor.execute(
         """
-        SELECT id, version_number, file_path, file_size
-        FROM tblProjectVersions
-        WHERE file_id = %s
-        ORDER BY version_number DESC, id DESC
-        LIMIT 1
-        FOR UPDATE
+        UPDATE tblSubmissions
+        SET status = %s, remarks = %s
+        WHERE id = %s
         """,
-        (file_id,),
+        (status, remarks, submission_id),
     )
-    return cursor.fetchone()
+
+
+
+
+
+def insert_submission_snapshot_file_repo(
+    cursor, project_id, folder_id, file_name, file_type, file_size, file_path
+):
+    cursor.execute(
+        """
+        INSERT INTO tblProjectFiles
+            (project_id, folder_id, file_name, file_type, file_size,
+             current_path, created_at, updated_at, deleted_at, status)
+        VALUES (%s, %s, %s, %s, %s, %s, UTC_TIMESTAMP(), UTC_TIMESTAMP(),
+                UTC_TIMESTAMP(), 'Archived')
+        """,
+        (project_id, folder_id, file_name, file_type, file_size, file_path),
+    )
+    return cursor.lastrowid
 
 
 def insert_project_version_repo(cursor, file, user_id, version_number):
@@ -135,36 +150,12 @@ def insert_project_version_repo(cursor, file, user_id, version_number):
     return cursor.lastrowid
 
 
-def create_submission_version_repo(cursor, submission_id, version_number, status):
-    cursor.execute(
-        """
-        INSERT INTO tblSubmissionVersions
-            (submission_id, version_number, submitted_at, status)
-        VALUES (%s, %s, UTC_TIMESTAMP(), %s)
-        """,
-        (submission_id, version_number, status),
-    )
-    return cursor.lastrowid
-
-
-def insert_submission_version_file_repo(cursor, submission_version_id, project_version_id, file):
-    cursor.execute(
-        """
-        INSERT INTO tblSubmissionVersionFiles
-            (submission_version_id, project_version_id, file_name, file_type, file_size)
-        VALUES (%s, %s, %s, %s, %s)
-        """,
-        (submission_version_id, project_version_id, file["file_name"],
-         file["file_type"], file["file_size"]),
-    )
-
-
-def replace_submission_files_repo(cursor, submission_id, file_ids):
+def replace_submission_files_repo(cursor, submission_id, snapshot_file_ids):
     cursor.execute(
         "DELETE FROM tblSubmissionFiles WHERE submission_id = %s",
         (submission_id,),
     )
-    for file_id in file_ids:
+    for file_id in snapshot_file_ids:
         cursor.execute(
             "INSERT INTO tblSubmissionFiles (submission_id, file_id) VALUES (%s, %s)",
             (submission_id, file_id),
@@ -183,10 +174,7 @@ def list_activity_submissions_repo(cursor, activity_id, role, profile_id):
             s.remarks,
             st.student_number,
             u.first_name,
-            u.last_name,
-            (SELECT MAX(sv.version_number)
-             FROM tblSubmissionVersions sv
-             WHERE sv.submission_id = s.id) AS latest_version
+            u.last_name
         FROM tblSubmissions s
         JOIN tblStudents st ON st.id = s.student_id
         JOIN tblUsers u ON u.id = st.user_id
@@ -227,57 +215,53 @@ def submission_access_repo(cursor, submission_id):
     return cursor.fetchone()
 
 
-def list_submission_versions_repo(cursor, submission_id):
+def lock_submission_repo(cursor, submission_id):
+    cursor.execute(
+        "SELECT id FROM tblSubmissions WHERE id = %s FOR UPDATE",
+        (submission_id,),
+    )
+    return cursor.fetchone()
+
+
+def list_submission_files_repo(cursor, submission_id):
     cursor.execute(
         """
-        SELECT id, submission_id, version_number, submitted_at, status
-        FROM tblSubmissionVersions
-        WHERE submission_id = %s
-        ORDER BY version_number DESC
+        SELECT
+            sf.id AS submission_file_id,
+            f.id AS file_id,
+            f.file_name,
+            f.file_type,
+            f.file_size,
+            pv.id AS project_version_id,
+            pv.version_number AS file_version
+        FROM tblSubmissionFiles sf
+        JOIN tblProjectFiles f ON f.id = sf.file_id
+        LEFT JOIN tblProjectVersions pv
+            ON pv.file_id = f.id AND pv.version_number = 1
+        WHERE sf.submission_id = %s
+        ORDER BY f.file_name, sf.id
         """,
         (submission_id,),
     )
     return cursor.fetchall()
 
 
-def list_submission_version_files_repo(cursor, submission_version_id):
+def submission_file_repo(cursor, submission_id, submission_file_id):
     cursor.execute(
         """
         SELECT
-            svf.project_version_id,
-            svf.file_name,
-            svf.file_type,
-            svf.file_size,
-            pv.version_number AS file_version
-        FROM tblSubmissionVersionFiles svf
-        JOIN tblProjectVersions pv ON pv.id = svf.project_version_id
-        WHERE svf.submission_version_id = %s
-        ORDER BY svf.file_name, svf.project_version_id
-        """,
-        (submission_version_id,),
-    )
-    return cursor.fetchall()
-
-
-def submission_file_repo(cursor, submission_id, version_number, project_version_id):
-    cursor.execute(
-        """
-        SELECT
-            svf.file_name,
-            svf.file_type,
-            pv.file_path,
+            sf.id AS submission_file_id,
+            f.file_name,
+            f.file_type,
+            f.current_path AS file_path,
             p.id AS project_id,
             p.student_id
-        FROM tblSubmissionVersionFiles svf
-        JOIN tblSubmissionVersions sv ON sv.id = svf.submission_version_id
-        JOIN tblSubmissions s ON s.id = sv.submission_id
-        JOIN tblProjectVersions pv ON pv.id = svf.project_version_id
-        JOIN tblProjectFiles pf ON pf.id = pv.file_id
-        JOIN tblProjects p ON p.id = pf.project_id
-        WHERE s.id = %s AND sv.version_number = %s
-          AND svf.project_version_id = %s
+        FROM tblSubmissionFiles sf
+        JOIN tblProjectFiles f ON f.id = sf.file_id
+        JOIN tblProjects p ON p.id = f.project_id
+        WHERE sf.submission_id = %s AND sf.id = %s
         LIMIT 1
         """,
-        (submission_id, version_number, project_version_id),
+        (submission_id, submission_file_id),
     )
     return cursor.fetchone()

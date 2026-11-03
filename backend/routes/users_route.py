@@ -48,9 +48,8 @@ def update_admin(id):
     return update_admin_control(id)
 
 
-@users_bp.patch("/users/<int:id>/status")
+@users_bp.put("/users/<int:id>/status")
 @token_required
 @role_required("Admin")
 def set_account_status(id):
     return set_account_status_control(id)
-

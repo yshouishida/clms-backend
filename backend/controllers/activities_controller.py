@@ -152,23 +152,37 @@ def list_activity_submissions_control(activity_id):
     )
 
 
-def list_submission_versions_control(submission_id):
+def list_submission_files_control(submission_id):
     return _submission_response(
-        submissions_service.list_submission_versions_service,
-        "Submission versions retrieved.",
+        submissions_service.list_submission_files_service,
+        "Submission files retrieved.",
         g.user_id,
         g.user_role,
         submission_id,
     )
 
 
-def download_submission_file_control(
-    submission_id, version_number, project_version_id
-):
+def review_submission_control(submission_id):
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict) or set(body) - {"status", "remarks"}:
+        return error("Send status and optional remarks only.", 400)
+    if "status" not in body:
+        return error("status is required.", 400)
+    return _submission_response(
+        submissions_service.review_submission_service,
+        "Submission reviewed.",
+        g.user_id,
+        g.user_role,
+        submission_id,
+        body["status"],
+        body.get("remarks"),
+    )
+
+
+def download_submission_file_control(submission_id, submission_file_id):
     try:
         path, file_name = submissions_service.get_submission_file_service(
-            g.user_id, g.user_role, submission_id, version_number,
-            project_version_id,
+            g.user_id, g.user_role, submission_id, submission_file_id,
         )
         response = send_file(
             path,

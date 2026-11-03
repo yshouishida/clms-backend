@@ -10,6 +10,7 @@ from backend.repositories import folders_repository as folders_repo
 from backend.repositories import project_versions_repository as repo
 from backend.services.folders_service import student_transaction, validate_name
 from backend.utils.folder_errors import FolderError
+from backend.utils.audit import record_audit_event
 
 
 def version_data(row):
@@ -148,6 +149,10 @@ def upload_file_version_service(
             )
             if updated_file is None:
                 raise RuntimeError("Updated file could not be retrieved.")
+            record_audit_event(
+                cursor, user_id, "Create Version", "Project File",
+                file_id, f"Created file version {latest + 1}.",
+            )
             result = {
                 "file": current_file_data(updated_file),
                 "version": version_data(version),
@@ -228,6 +233,11 @@ def restore_file_version_service(
             if updated_file is None:
                 raise RuntimeError("Restored current file could not be retrieved.")
 
+            record_audit_event(
+                cursor, user_id, "Restore Version", "Project File",
+                file_id,
+                f"Restored version {version_number} as version {new_number}.",
+            )
             return {
                 "file": current_file_data(updated_file),
                 "restored_from_version": version_number,

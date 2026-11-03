@@ -37,7 +37,7 @@ def list_folder_projects(folder_id):
 def create_folder_project(folder_id):
     return create_folder_project_control(folder_id)
 
-@projects_bp.route(PROJECT_DETAIL_URL, methods=["PATCH"])
+@projects_bp.route(PROJECT_DETAIL_URL, methods=["PUT"])
 @token_required
 @role_required("Student")
 def update_folder_project(folder_id, project_id):

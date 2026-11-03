@@ -6,7 +6,8 @@ from backend.controllers.activities_controller import (
     download_submission_file_control,
     get_activity_control,
     list_activity_submissions_control,
-    list_submission_versions_control,
+    list_submission_files_control,
+    review_submission_control,
     list_activities_control,
     submit_activity_control,
     update_activity_control,
@@ -82,20 +83,24 @@ def submit_activity(activity_id):
     return submit_activity_control(activity_id)
 
 
-@activities_bp.get("/submissions/<int:submission_id>/versions")
+@activities_bp.get("/submissions/<int:submission_id>/files")
 @token_required
 @role_required("Admin", "Instructor", "Student")
-def list_submission_versions(submission_id):
-    return list_submission_versions_control(submission_id)
+def list_submission_files(submission_id):
+    return list_submission_files_control(submission_id)
 
+@activities_bp.put("/submissions/<int:submission_id>/review")
+@token_required
+@role_required("Admin", "Instructor")
+def review_submission(submission_id):
+    return review_submission_control(submission_id)
 
 @activities_bp.get(
-    "/submissions/<int:submission_id>/versions/<int:version_number>"
-    "/files/<int:project_version_id>"
+    "/submissions/<int:submission_id>/files/<int:submission_file_id>"
 )
 @token_required
 @role_required("Admin", "Instructor", "Student")
-def download_submission_file(submission_id, version_number, project_version_id):
+def download_submission_file(submission_id, submission_file_id):
     return download_submission_file_control(
-        submission_id, version_number, project_version_id
+        submission_id, submission_file_id
     )

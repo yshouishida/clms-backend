@@ -13,7 +13,7 @@ Run these commands in PowerShell from the repository root. Python 3.9+ and MySQL
    .\backend\.venv\Scripts\python.exe -m pip install Flask python-dotenv PyMySQL PyJWT
    ```
 
-2. Create a database using your MySQL client, then run [Database_Design_V04.sql](backend/database/Database_Design_V04.sql) against it. Insert one row for each `tblRoles.role_name`: `Admin`, `Student`, and `Instructor`. The schema does not seed these roles. This SQL file is present in the current workspace but ignored by Git, so a new checkout needs a copy of it.
+2. Create a database using your MySQL client, then run the single schema file [DATABASE.sql](../DATABASE.sql). Insert one row for each `tblRoles.role_name`: `Admin`, `Student`, and `Instructor`. The schema does not seed these roles. Keep this file as the sole database schema source.
 
 3. Copy the environment template and set every value in `backend/.env` using `KEY=value` syntax:
 
@@ -39,7 +39,9 @@ Run these commands in PowerShell from the repository root. Python 3.9+ and MySQL
 
 For student workstation login, RFID scanning, logout, and session recovery, see [Workstation and RFID API](backend/WORKSTATION_API.md).
 
-For activity file submissions, resubmission versions, and file access, see [Activity Submissions API](backend/ACTIVITY_SUBMISSIONS_API.md). Run its database migration after the base schema.
+For activity submissions, resubmission, immutable current submitted-file copies, and file access, see [Activity Submissions API](backend/ACTIVITY_SUBMISSIONS_API.md).
+
+For Member 3 APIs, see the [module documentation index](backend/PC_ISSUES_REPORTS_API.md): [classes and enrollment](backend/CLASS_MANAGEMENT_API.md), [activities](backend/ACTIVITIES_API.md), [submission review](backend/ACTIVITY_SUBMISSIONS_API.md), [PC issue reports](backend/ISSUES_API.md), [reports](backend/REPORTS_API.md), [announcements](backend/ANNOUNCEMENTS_API.md), and [audit history](backend/AUDIT_API.md).
 
 For laboratory/hardware management, per-PC agent credentials, monitoring configuration, and snapshot uploads, see [Monitoring API](backend/MONITORING_API.md). Copy the proposed timing values from `.env.example` and provision unique agent credentials before enabling monitoring. Review the [backend monitoring audit](backend/MONITORING_AUDIT.md) for test results and integration limitations.
 
@@ -50,7 +52,6 @@ clms-backend/
 |-- README.md                          Setup and project map
 |-- create_user.py                     Interactive first administrator bootstrap
 |-- run.py                             Flask development entry point
-|-- tests/                             Disposable V04 database integration tests
 `-- backend/
     |-- .env.example                   Environment variable names
     |-- __init__.py                    App factory and blueprint registration
@@ -60,9 +61,7 @@ clms-backend/
     |-- config/settings.py             JWT settings
     |-- controllers/                   Request validation and API responses
     |-- database/
-    |   |-- connection.py              PyMySQL connection settings
-    |   |-- Database_Design_V04.sql    Authoritative table definitions
-    |   `-- views.sql                  Local SQL views (ignored by Git)
+    |   `-- connection.py              PyMySQL connection settings
     |-- repositories/                  Parameterized database operations
     |-- routes/                        Flask URL and permission declarations
     |-- services/                      Authentication and business rules

@@ -2,7 +2,7 @@
 
 ## Contract status and scope
 
-This is a **new backend contract proposed for C# integration**, implemented against `Database_Design_V04.sql`. No agent API or monitoring timing configuration previously existed. The existing [student workstation login API](WORKSTATION_API.md) is preserved. Backend tests use Flask and disposable MariaDB databases; C# and physical devices have not been tested.
+This is a **new backend contract proposed for C# integration**, implemented against the sole schema source `DATABASE.sql`. No agent API or monitoring timing configuration previously existed. The existing [student workstation login API](WORKSTATION_API.md) is preserved. A prior local backend test run is summarized in [MONITORING_AUDIT.md](MONITORING_AUDIT.md); its test sources are not included in this checkout. C# and physical devices have not been tested.
 
 SPDP reference: `C:/Users/ricken/Downloads/BSIT-3-1-SPDP.pdf`, pages 5–11. Register all 37 actual laboratory PCs, with reader/Arduino/camera sets on only five selected PCs. Register the sixth reader and Arduino as registration-station devices. These counts describe deployment scope, not seeded records or hardcoded dashboard totals. The backend receives login snapshots; it does not operate cameras or continuously record video.
 
@@ -22,7 +22,7 @@ Use actual database IDs. The **proposed** reporting interval is 30 seconds; a sa
 
 Generate a unique high-entropy secret per PC, for example using Python `secrets.token_urlsafe(32)`. Deliver the raw secret securely to that PC; store only `hashlib.sha256(secret.encode()).hexdigest()` in the mapping. Tokens must contain 32–256 characters. Duplicate digests or malformed configuration return `503`. Remove/replace an entry and restart all workers to revoke/rotate it. Do not put secrets in source control, URLs or logs. No agent JWT endpoint or credential table is introduced.
 
-Every agent call uses `Authorization: Bearer <this PC's raw agent secret>`. The URL workstation ID must match its configured key. Human JWTs, missing credentials and another PC's key return `401`. Retired PCs return `403`; a configured ID missing from the database returns `404`. Maintenance PCs may report diagnostics.
+Every agent call uses `Authorization: Bearer <raw agent secret>. The URL workstation ID must match its configured key. Human JWTs, missing credentials and another PC's key return `401`. Retired PCs return `403`; a configured ID missing from the database returns `404`. Maintenance PCs may report diagnostics.
 
 Human endpoints use existing user JWTs, with account-status and role checks. The fleet-wide `X-Workstation-Key` remains part of student workstation login; it is not an agent credential. Agents cannot manage accounts, authenticate students or close sessions through these new endpoints.
 
@@ -165,11 +165,11 @@ Levels: `Info`, `Warning`, `Error`, `Critical`. Components: `Agent`, `Network`, 
 | Method and URL | Access | Result |
 |---|---|---|
 | GET `/laboratories`, `/laboratories/{id}` | Admin, Instructor | Laboratory records |
-| POST `/laboratories`; PATCH `/laboratories/{id}` | Admin | Register/update, including activation |
+| POST `/laboratories`; PUT `/laboratories/{id}` | Admin | Register/update, including activation |
 | GET `/workstations`, `/workstations/{id}` | Admin, Instructor | PC inventory; list filter `laboratory_id` |
-| POST `/workstations`; PATCH `/workstations/{id}` | Admin | Register/update/laboratory assignment |
+| POST `/workstations`; PUT `/workstations/{id}` | Admin | Register/update/laboratory assignment |
 | GET `/hardware/{kind}`, `/hardware/{kind}/{id}` | Admin, Instructor | Device/assignment report; list filter `workstation_id` |
-| POST `/hardware/{kind}`; PATCH `/hardware/{kind}/{id}` | Admin | Register/update/assign hardware |
+| POST `/hardware/{kind}`; PUT `/hardware/{kind}/{id}` | Admin | Register/update/assign hardware |
 | GET `/monitoring/dashboard?laboratory_id=1` | Admin, Instructor | All PCs, connectivity, occupancy, hardware counts, metrics |
 | GET `/monitoring/workstations/{id}/history` | Admin, Instructor | Agent samples, newest first |
 | GET `/monitoring/logs?workstation_id=1` | Admin | Inventory changes, device transitions, errors |
@@ -187,7 +187,7 @@ Lists accept `limit` (1–1000, default 100) and `offset` (default 0), returning
 | arduinos | `device_name` | `workstation_id`, `serial_port`, `connection_status`, `status` |
 | cameras | `device_name`, `workstation_id` | `connection_status`, `status` |
 
-Laboratory status: `Active`/`Inactive`. PC status: `Active`/`Under Maintenance`/`Retired`; condition: `Working`/`Defective`/`For Inspection`. Device status: `Active`/`Inactive`/`Defective`; connection: `Connected`/`Disconnected`. Lengths follow V04 with a 4000-character API limit for laboratory description. Optional nullable text can be cleared with null. PATCH takes a nonempty subset.
+Laboratory status: `Active`/`Inactive`. PC status: `Active`/`Under Maintenance`/`Retired`; condition: `Working`/`Defective`/`For Inspection`. Device status: `Active`/`Inactive`/`Defective`; connection: `Connected`/`Disconnected`. Lengths follow `DATABASE.sql` with a 4000-character API limit for laboratory description. Optional nullable text can be cleared with null. PUT accepts update fields.
 
 Unique PC name/asset tag and reader serial conflicts return `409`. Transaction checks permit one Active device per kind per PC. Moves reset device connection to Disconnected. Moving hardware/PCs or changing PC maintenance status while occupied is rejected; laboratory deactivation also requires no active sessions. Conflicting legacy/direct-SQL assignments require administrator cleanup.
 

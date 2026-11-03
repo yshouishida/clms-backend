@@ -5,6 +5,7 @@ import re
 from backend.database.connection import get_connection
 from backend.repositories import activities_repository as repo
 from backend.repositories import classes_repository as classes_repo
+from backend.utils.audit import record_audit_event
 
 
 class ActivitiesError(Exception):
@@ -151,6 +152,10 @@ def create_activity_service(
         activity_id = repo.insert_activity_repo(
             cursor, class_id, instructor_id, fields
         )
+        record_audit_event(
+            cursor, user_id, "Create", "Activity", activity_id,
+            f"Created activity in class {class_id}.",
+        )
         row = repo.get_activity_repo(
             cursor, activity_id, role, instructor_id
         )
@@ -180,6 +185,10 @@ def update_activity_service(
                 "Closed or archived activities cannot be edited.", 409
             )
         repo.update_activity_repo(cursor, activity_id, fields)
+        record_audit_event(
+            cursor, user_id, "Update", "Activity", activity_id,
+            "Updated activity details.",
+        )
         return _serialize(
             repo.get_activity_repo(cursor, activity_id, role, profile_id)
         )
@@ -214,6 +223,10 @@ def update_activity_status_service(user_id, role, activity_id, status):
                 409,
             )
         repo.update_activity_status_repo(cursor, activity_id, status)
+        record_audit_event(
+            cursor, user_id, "Status Change", "Activity", activity_id,
+            f"Changed activity status from {current['status']} to {status}.",
+        )
         return _serialize(
             repo.get_activity_repo(cursor, activity_id, role, profile_id)
         )

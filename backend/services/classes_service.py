@@ -3,6 +3,7 @@ import secrets
 
 from backend.database.connection import get_connection
 from backend.repositories import classes_repository as repo
+from backend.utils.audit import record_audit_event
 
 
 JOIN_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
@@ -126,6 +127,10 @@ def create_class_service(
             raise ClassesError("Could not generate a unique class code. Retry.", 503)
 
         class_id = repo.insert_class_repo(cursor, instructor_id, fields)
+        record_audit_event(
+            cursor, user_id, "Create", "Class", class_id,
+            "Created a class.",
+        )
         row = repo.get_class_repo(cursor, class_id, role, instructor_id)
         if row is None:
             raise RuntimeError("Created class could not be retrieved.")
@@ -148,9 +153,12 @@ def update_class_service(
         existing = repo.get_class_repo(cursor, class_id, role, instructor_id)
         if existing is None:
             raise ClassesError("Class not found.", 404)
-        owner_id = existing["instructor_id"]
         repo.update_class_repo(
             cursor, class_id, instructor_id, fields, role == "Admin"
+        )
+        record_audit_event(
+            cursor, user_id, "Update", "Class", class_id,
+            "Updated class details.",
         )
         return _serialize(
             repo.get_class_repo(cursor, class_id, role, instructor_id)
@@ -169,6 +177,10 @@ def archive_class_service(user_id, role, class_id):
             cursor, class_id, instructor_id, role == "Admin"
         ):
             raise ClassesError("Class not found.", 404)
+        record_audit_event(
+            cursor, user_id, "Archive", "Class", class_id,
+            "Archived a class.",
+        )
         return _serialize(repo.get_class_repo(cursor, class_id, role, instructor_id))
 
 
@@ -223,6 +235,10 @@ def enroll_student_service(user_id, role, class_id, student_id):
         result = repo.get_class_member_repo(cursor, class_id, student_id)
         if result is None:
             raise RuntimeError(f"Created class membership {member_id} was not found.")
+        record_audit_event(
+            cursor, user_id, "Enroll", "Class Membership", member_id,
+            f"Enrolled student {student_id} in class {class_id}.",
+        )
         return _serialize(result)
 
 
@@ -264,6 +280,10 @@ def join_class_service(user_id, role, class_code):
         membership = repo.get_class_member_repo(
             cursor, class_row["id"], student_id
         )
+        record_audit_event(
+            cursor, user_id, "Join", "Class Membership", membership["id"],
+            f"Joined class {class_row['id']} using a class code.",
+        )
         return {
             "class": _serialize(class_row),
             "membership": _serialize(membership),
@@ -290,6 +310,10 @@ def update_class_member_service(user_id, role, class_id, student_id, status):
         if member["status"] == "Completed" and status != "Completed":
             raise ClassesError("Completed memberships cannot be reopened.", 409)
         repo.update_class_member_repo(cursor, class_id, student_id, status)
+        record_audit_event(
+            cursor, user_id, "Status Change", "Class Membership", member["id"],
+            f"Changed membership status from {member['status']} to {status}.",
+        )
         return _serialize(
             repo.get_class_member_repo(cursor, class_id, student_id)
         )

@@ -1,0 +1,284 @@
+@baseUrl = http://127.0.0.1:5000
+@instructorToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIzIiwianRpIjoiZjE2MzMxNTUtNmJiNS00MmJkLTkxYTItYjQ3MjQ1MGJjNGY0IiwiZXhwIjoxNzkzNzA0NzQyLCJyb2xlIjoiSW5zdHJ1Y3RvciJ9.T_Lzrw3BTtYKfJP-fhA7AsEoOdOLRf1xlCJvPksQFvc
+@studentToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1IiwianRpIjoiNjJlOGQxMTAtMDRmMi00NjllLTlmMmYtMmYzZGY3MTNkNzBlIiwiZXhwIjoxNzkzNzA0ODA2LCJyb2xlIjoiU3R1ZGVudCJ9.kSMg-qrBTDjJJXa1FtAAnDerf9C89pDryE4ZZq62k00
+@adminToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIyIiwianRpIjoiMjliNWQ3MzgtNWQyMS00Njk0LThmZDMtMWRhY2NlYTYwYzE1IiwiZXhwIjoxNzkzNzA0ODU0LCJyb2xlIjoiQWRtaW4ifQ.C9xXQPdkgSbY61hXIDJrUQawHMYaz2OANqJWqr-Mk8s
+
+###
+# @name instructorLogin
+POST {{baseUrl}}/login
+Content-Type: application/json
+
+{
+  "username": "jrivera",
+    "password": "123"
+}
+
+###
+# @name studentLogin
+POST {{baseUrl}}/login
+Content-Type: application/json
+
+{
+  "username": "samlee",
+    "password": "111"
+}
+
+###
+# @name adminLogin
+POST {{baseUrl}}/login
+Content-Type: application/json
+
+{
+  "username": "x1",
+    "password": "asd"
+}
+
+###
+POST {{baseUrl}}/classes
+Authorization: Bearer {{instructorToken}}
+Content-Type: application/json
+
+{
+  "class_name": "Manual Test Class",
+  "school_year": "2026-2027",
+  "semester": "First Semester",
+  "description": "Temporary manual testing"
+}
+
+###
+POST {{baseUrl}}/classes/join
+Authorization: Bearer {{studentToken}}
+Content-Type: application/json
+
+{
+  "class_code": "A6BGZTQPSP"
+}
+
+###
+GET {{baseUrl}}/classes
+Authorization: Bearer {{instructorToken}}
+
+###
+GET {{baseUrl}}/classes
+Authorization: Bearer {{studentToken}}
+
+###
+POST {{baseUrl}}/classes/5/activities
+Authorization: Bearer {{instructorToken}}
+Content-Type: application/json
+
+{
+  "activity_name": "Manual submission test",
+  "instructions": "Submit a small test file.",
+  "due_date": "2099-12-01T10:00:00Z"
+}
+
+###
+PUT {{baseUrl}}/activities/3/status
+Authorization: Bearer {{instructorToken}}
+Content-Type: application/json
+
+{
+  "status": "Published"
+}
+
+###
+POST {{baseUrl}}/folders/initialize
+Authorization: Bearer {{studentToken}}
+Content-Type: application/json
+
+{}
+
+###
+GET {{baseUrl}}/folders/roots
+Authorization: Bearer {{studentToken}}
+
+###
+POST {{baseUrl}}/folders/1/projects
+Authorization: Bearer {{studentToken}}
+Content-Type: application/json
+
+{
+  "project_name": "Manual Test Project",
+  "description": "Temporary project for submission testing"
+}
+
+###
+POST {{baseUrl}}/folders/1/projects/3/files
+Authorization: Bearer {{studentToken}}
+Content-Type: multipart/form-data; boundary=CLMSBoundary
+
+--CLMSBoundary
+Content-Disposition: form-data; name="file"; filename="sample.txt"
+Content-Type: text/plain
+
+< ./sample.txt
+--CLMSBoundary--
+
+###
+POST {{baseUrl}}/activities/1/submissions
+Authorization: Bearer {{studentToken}}
+Content-Type: application/json
+
+{
+  "project_id": 3,
+  "file_ids": [2]
+}
+
+###
+GET {{baseUrl}}/submissions/2/files
+Authorization: Bearer {{studentToken}}
+
+###
+GET {{baseUrl}}/submissions/2/files/4
+Authorization: Bearer {{studentToken}}
+
+###
+POST {{baseUrl}}/folders/1/projects/3/files/2/versions
+Authorization: Bearer {{studentToken}}
+Content-Type: multipart/form-data; boundary=CLMSBoundary
+
+--CLMSBoundary
+Content-Disposition: form-data; name="file"; filename="sample.txt"
+Content-Type: text/plain
+
+< ./sample.txt
+--CLMSBoundary--
+
+###
+PUT {{baseUrl}}/submissions/2/review
+Authorization: Bearer {{instructorToken}}
+Content-Type: application/json
+
+{
+  "status": "Returned",
+  "remarks": "Please revise the test file."
+}
+
+###
+POST {{baseUrl}}/workstations/1/issues
+Authorization: Bearer {{studentToken}}
+Content-Type: application/json
+
+{
+  "issue_type": "Hardware",
+  "title": "Manual test issue",
+  "description": "Temporary report for API testing",
+  "priority": "Medium"
+}
+
+###
+GET {{baseUrl}}/workstations
+Authorization: Bearer {{adminToken}}
+
+###
+POST {{baseUrl}}/laboratories
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "laboratory_name": "Manual Test Lab",
+  "room_number": "TEST-01",
+  "description": "Temporary API test lab"
+}
+
+###
+POST {{baseUrl}}/workstations
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "laboratory_id": 1,
+  "pc_name": "MANUAL-TEST-PC",
+  "asset_tag": "MANUAL-TEST-ASSET"
+}
+
+###
+POST {{baseUrl}}/workstations/1/issues
+Authorization: Bearer {{studentToken}}
+Content-Type: application/json
+
+{
+  "issue_type": "Hardware",
+  "title": "Manual test issue",
+  "description": "Testing issue reporting.",
+  "priority": "Medium"
+}
+
+###
+POST {{baseUrl}}/workstations/1/issues
+Authorization: Bearer {{studentToken}}
+Content-Type: application/json
+
+{
+  "issue_type": "Hardware",
+  "title": "Manual test issue",
+  "description": "Temporary report for API testing",
+  "priority": "Medium"
+}
+
+###
+GET {{baseUrl}}/pc-issues
+Authorization: Bearer {{studentToken}}
+
+###
+PUT {{baseUrl}}/pc-issues/1
+Authorization: Bearer {{instructorToken}}
+Content-Type: application/json
+
+{
+  "status": "Under Review"
+}
+
+###
+PUT {{baseUrl}}/pc-issues/1
+Authorization: Bearer {{instructorToken}}
+Content-Type: application/json
+
+{
+  "status": "In Progress"
+}
+
+###
+PUT {{baseUrl}}/pc-issues/1
+Authorization: Bearer {{instructorToken}}
+Content-Type: application/json
+
+{
+  "status": "Resolved",
+  "resolution_details": "Completed manual API test."
+}
+
+###
+GET {{baseUrl}}/pc-issues?status=Resolved
+Authorization: Bearer {{instructorToken}}
+
+###
+GET {{baseUrl}}/reports/activities?class_id=5
+Authorization: Bearer {{instructorToken}}
+
+###
+GET {{baseUrl}}/reports/submissions?class_id=5
+Authorization: Bearer {{instructorToken}}
+
+###
+GET {{baseUrl}}/reports/student-progress?class_id=5
+Authorization: Bearer {{instructorToken}}
+
+###
+POST {{baseUrl}}/classes/5/announcements
+Authorization: Bearer {{instructorToken}}
+Content-Type: application/json
+
+{
+  "title": "Manual test announcement",
+  "content": "Temporary announcement for API testing."
+}
+
+###
+GET {{baseUrl}}/classes/5/announcements
+Authorization: Bearer {{studentToken}}
+
+###
+GET {{baseUrl}}/audit-logs
+Authorization: Bearer {{adminToken}}

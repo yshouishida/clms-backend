@@ -37,7 +37,7 @@ def replace_card():
     return replace_card_control()
 
 
-@rfid_bp.patch("/rfid/cards/<int:card_id>/status")
+@rfid_bp.put("/rfid/cards/<int:card_id>/status")
 @token_required
 @role_required("Admin")
 def set_card_status(card_id):

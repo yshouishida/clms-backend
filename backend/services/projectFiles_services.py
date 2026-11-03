@@ -5,6 +5,7 @@ from backend.services.folders_service import student_transaction
 from backend.services.projects_services import project_data
 
 from backend.utils.folder_errors import FolderError
+from backend.utils.audit import record_audit_event
 
 from pathlib import Path
 from uuid import uuid4
@@ -184,6 +185,10 @@ def upload_project_files_service(
                         "Uploaded file could not be retrieved."
                     )
 
+                record_audit_event(
+                    cursor, user_id, "Upload", "Project File", row["id"],
+                    f"Uploaded {file_name} to project {project_id}.",
+                )
                 results.append(file_data(row))
 
         return {
@@ -266,6 +271,10 @@ def rename_project_file_service(
         )
         if updated is None:
             raise FolderError("File could not be renamed.", 409)
+        record_audit_event(
+            cursor, user_id, "Rename", "Project File", file_id,
+            f"Renamed file from {row['file_name']} to {new_file_name}.",
+        )
         return file_data(updated)
 
 def delete_project_file_service(user_id, folder_id, project_id, file_id):
@@ -277,6 +286,10 @@ def delete_project_file_service(user_id, folder_id, project_id, file_id):
         deleted_at = cursor.fetchone()["deleted_at"]
         result = files_repo.soft_delete_project_file_repo(
             cursor, project_id, file_id, deleted_at
+        )
+        record_audit_event(
+            cursor, user_id, "Delete", "Project File", file_id,
+            f"Soft-deleted {result['file_name']} from project {project_id}.",
         )
         payload = file_data(result)
         payload["deleted_at"] = (

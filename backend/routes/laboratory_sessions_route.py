@@ -63,7 +63,7 @@ def heartbeat_session(session_id):
     return heartbeat_session_control(session_id)
 
 
-@laboratory_sessions_bp.patch("/laboratory-sessions/<int:session_id>/terminate")
+@laboratory_sessions_bp.put("/laboratory-sessions/<int:session_id>/terminate")
 @token_required
 @role_required("Admin")
 def terminate_session(session_id):

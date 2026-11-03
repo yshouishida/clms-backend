@@ -41,7 +41,7 @@ def upload_project_file(folder_id, project_id):
 def download_project_file(folder_id, project_id, file_id):
     return download_project_file_control(folder_id, project_id, file_id)
 
-@project_files_bp.route(PROJECT_FILE_DETAIL_URL, methods=["PATCH"])
+@project_files_bp.route(PROJECT_FILE_DETAIL_URL, methods=["PUT"])
 @token_required
 @role_required("Student")
 def rename_project_file(folder_id, project_id, file_id):
