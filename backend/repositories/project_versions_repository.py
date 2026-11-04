@@ -1,4 +1,5 @@
-"""SQL for file versions. All calls use the caller's transaction."""
+"""SQL for project-file versions and post-failure storage checks."""
+from backend.database.connection import get_connection
 
 VERSION_COLUMNS = """
     id,
@@ -115,3 +116,38 @@ def list_versions_repo(cursor, file_id, limit, offset):
         (file_id, limit + 1, offset),
     )
     return cursor.fetchall()
+
+
+def get_stored_version_repo(cursor, version_id):
+    """Return internal storage metadata, including historical versions of soft-deleted files."""
+    cursor.execute(
+        """
+        SELECT v.id, v.file_id, v.version_number, v.file_path, v.file_size,
+               f.file_name
+        FROM tblProjectVersions v
+        JOIN tblProjectFiles f ON f.id = v.file_id
+        WHERE v.id = %s
+        LIMIT 1
+        """,
+        (version_id,),
+    )
+    return cursor.fetchone()
+
+
+def stored_path_is_referenced_repo(path):
+    """Use a fresh connection after a failed or uncertain commit before file cleanup."""
+    connection = get_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    EXISTS(SELECT 1 FROM tblProjectVersions WHERE file_path = %s)
+                    OR EXISTS(SELECT 1 FROM tblProjectFiles WHERE current_path = %s)
+                    AS referenced
+                """,
+                (str(path), str(path)),
+            )
+            return bool(cursor.fetchone()["referenced"])
+    finally:
+        connection.close()

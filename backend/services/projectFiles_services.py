@@ -1,13 +1,19 @@
 from backend.repositories import folders_repository as folders_repo
 from backend.repositories import projectFiles_repository as files_repo
+from backend.repositories import project_versions_repository as versions_repo
 
 from backend.services.folders_service import student_transaction
 from backend.services.projects_services import project_data
+from backend.services.project_versions_service import (
+    cleanup_uncommitted_files,
+    version_data,
+)
 
 from backend.utils.folder_errors import FolderError
 
 from pathlib import Path
 from uuid import uuid4
+import os
 
 from flask import current_app
 
@@ -165,6 +171,8 @@ def upload_project_files_service(
                             )
 
                         destination.write(chunk)
+                    destination.flush()
+                    os.fsync(destination.fileno())
 
                 row = files_repo.insert_project_file_repo(
                     cursor,
@@ -184,7 +192,13 @@ def upload_project_files_service(
                         "Uploaded file could not be retrieved."
                     )
 
-                results.append(file_data(row))
+                version = versions_repo.insert_version_repo(
+                    cursor, row["id"], 1, str(path), file_size, user_id
+                )
+                if version is None:
+                    raise RuntimeError("Initial file version could not be retrieved.")
+
+                results.append({**file_data(row), "version": version_data(version)})
 
         return {
             "files": results,
@@ -192,12 +206,6 @@ def upload_project_files_service(
         }
 
     except Exception:
-        for path in saved_paths:
-            try:
-                path.unlink(missing_ok=True)
-            except OSError:
-                current_app.logger.exception(
-                    "Could not remove a failed upload"
-                )
+        cleanup_uncommitted_files(saved_paths)
 
         raise

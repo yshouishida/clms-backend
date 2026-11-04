@@ -35,6 +35,7 @@ def create_app():
     from backend.routes.rfid_route import rfid_bp
     from backend.routes.laboratory_sessions_route import laboratory_sessions_bp
     from backend.routes.monitoring_route import monitoring_bp
+    from backend.routes.submissions_route import submissions_bp
     from backend.utils.agent_auth import configure_monitoring
 
     configure_monitoring(app)
@@ -53,6 +54,7 @@ def create_app():
     app.register_blueprint(rfid_bp)
     app.register_blueprint(laboratory_sessions_bp)
     app.register_blueprint(monitoring_bp)
+    app.register_blueprint(submissions_bp)
 
 
     return app
