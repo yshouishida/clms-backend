@@ -1,4 +1,5 @@
 """Create and list versions; previous physical contents are kept."""
+import os
 from pathlib import Path
 from uuid import uuid4
 
@@ -8,6 +9,7 @@ from flask import current_app
 
 from backend.repositories import folders_repository as folders_repo
 from backend.repositories import project_versions_repository as repo
+from backend.database.connection import get_connection
 from backend.services.folders_service import student_transaction, validate_name
 from backend.utils.folder_errors import FolderError
 from backend.utils.audit import record_audit_event
@@ -37,6 +39,55 @@ def current_file_data(row):
         if value is not None and hasattr(value, "isoformat"):
             result[key] = value.isoformat()
     return result
+
+
+def cleanup_uncommitted_files(paths):
+    """Delete new files only when a fresh DB read proves they were not committed."""
+    for path in paths:
+        try:
+            if not repo.stored_path_is_referenced_repo(path):
+                path.unlink(missing_ok=True)
+        except Exception:
+            # Keep uncertain bytes: deleting a committed version would be worse.
+            current_app.logger.error("Project file cleanup requires storage reconciliation")
+
+
+def read_file_version_service(version_id):
+    """Internal-only historical content reader; caller must authorize the version first.
+
+    Member 3 should authorize the submission and its pinned version before calling.
+    No route exposes this operation directly.
+    """
+    if type(version_id) is not int or version_id < 1:
+        raise FolderError("version_id must be a positive integer.", 400)
+
+    connection = get_connection()
+    try:
+        with connection.cursor() as cursor:
+            version = repo.get_stored_version_repo(cursor, version_id)
+    finally:
+        connection.close()
+    if version is None:
+        raise FolderError("File version not found.", 404)
+
+    root = (Path(current_app.instance_path) / "project_uploads").resolve()
+    try:
+        path = Path(version["file_path"]).resolve(strict=True)
+        if not path.is_relative_to(root) or not path.is_file():
+            raise FolderError("Stored file version is unavailable.", 409)
+        content = path.read_bytes()
+    except OSError:
+        raise FolderError("Stored file version is unavailable.", 409)
+    if len(content) != version["file_size"]:
+        raise FolderError("Stored file version is incomplete.", 409)
+    return {
+        "version_id": version["id"],
+        "file_id": version["file_id"],
+        "version_number": version["version_number"],
+        "file_name": version["file_name"],
+        "file_size": version["file_size"],
+        "content": content,
+    }
 
 
 def checked_file(cursor, student_id, folder_id, project_id, file_id):
@@ -133,6 +184,8 @@ def upload_file_version_service(
                             "File exceeds the upload size limit.", 413
                         )
                     destination.write(chunk)
+                destination.flush()
+                os.fsync(destination.fileno())
 
             version = repo.insert_version_repo(
                 cursor, file_id, latest + 1, str(path), file_size, user_id
@@ -161,15 +214,8 @@ def upload_file_version_service(
         return result
 
     except Exception:
-        # Only this request's NEW physical file is removed on failure.
-        # Older versions and the legacy baseline stay untouched.
         if saved_path is not None:
-            try:
-                saved_path.unlink(missing_ok=True)
-            except OSError:
-                current_app.logger.exception(
-                    "Could not remove a failed version upload"
-                )
+            cleanup_uncommitted_files([saved_path])
         raise
 
 def restore_file_version_service(

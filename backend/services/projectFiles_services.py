@@ -1,18 +1,20 @@
-from backend.repositories import folders_repository as folders_repo
-from backend.repositories import projectFiles_repository as files_repo
-
-from backend.services.folders_service import student_transaction
-from backend.services.projects_services import project_data
-
-from backend.utils.folder_errors import FolderError
-from backend.utils.audit import record_audit_event
-
+import os
 from pathlib import Path
 from uuid import uuid4
 
 from flask import current_app
 
-from backend.services.folders_service import validate_name
+from backend.repositories import folders_repository as folders_repo
+from backend.repositories import projectFiles_repository as files_repo
+from backend.repositories import project_versions_repository as versions_repo
+from backend.services.folders_service import student_transaction, validate_name
+from backend.services.projects_services import project_data
+from backend.services.project_versions_service import (
+    cleanup_uncommitted_files,
+    version_data,
+)
+from backend.utils.audit import record_audit_event
+from backend.utils.folder_errors import FolderError
 
 
 def file_data(row):
@@ -21,7 +23,6 @@ def file_data(row):
 
     for key in ("created_at", "updated_at"):
         value = result.get(key)
-
         if value is not None and hasattr(value, "isoformat"):
             result[key] = value.isoformat()
 
@@ -33,37 +34,25 @@ def list_project_files_service(
 ):
     with student_transaction(user_id) as (cursor, student_id):
         folder, _ = folders_repo.get_active_folder_repo(
-            cursor,
-            student_id,
-            folder_id,
+            cursor, student_id, folder_id
         )
 
         if folders_repo.root_key(folder) != "PROJECT":
             raise FolderError("Project root not found.", 404)
 
         project = files_repo.get_active_project_repo(
-            cursor,
-            student_id,
-            folder_id,
-            project_id,
+            cursor, student_id, folder_id, project_id
         )
-
         if project is None:
             raise FolderError("Project not found.", 404)
 
         rows = files_repo.list_project_files_repo(
-            cursor,
-            project_id,
-            limit,
-            offset,
+            cursor, project_id, limit, offset
         )
 
         return {
             "project": project_data(project),
-            "files": [
-                file_data(row)
-                for row in rows[:limit]
-            ],
+            "files": [file_data(row) for row in rows[:limit]],
             "pagination": {
                 "limit": limit,
                 "offset": offset,
@@ -71,9 +60,8 @@ def list_project_files_service(
             },
         }
 
-def upload_project_files_service(
-    user_id, folder_id, project_id, uploads
-):
+
+def upload_project_files_service(user_id, folder_id, project_id, uploads):
     max_files = current_app.config["PROJECT_UPLOAD_MAX_FILES"]
     max_file_size = current_app.config["PROJECT_FILE_MAX_BYTES"]
     max_total_size = current_app.config["PROJECT_UPLOAD_MAX_BYTES"]
@@ -93,14 +81,12 @@ def upload_project_files_service(
             folder, _ = folders_repo.get_active_folder_repo(
                 cursor, student_id, folder_id
             )
-
             if folders_repo.root_key(folder) != "PROJECT":
                 raise FolderError("Project root not found.", 404)
 
             project = files_repo.get_active_project_repo(
                 cursor, student_id, folder_id, project_id
             )
-
             if project is None:
                 raise FolderError("Project not found.", 404)
 
@@ -113,10 +99,7 @@ def upload_project_files_service(
 
             for uploaded in uploads:
                 if uploaded is None or not uploaded.filename:
-                    raise FolderError(
-                        "Select a file to upload.",
-                        400,
-                    )
+                    raise FolderError("Select a file to upload.", 400)
 
                 file_name, _ = validate_name(
                     uploaded.filename,
@@ -132,11 +115,8 @@ def upload_project_files_service(
                     )
 
                 path = directory / uuid4().hex
-
                 if len(str(path)) > 500:
-                    raise RuntimeError(
-                        "Upload storage path is too long."
-                    )
+                    raise RuntimeError("Upload storage path is too long.")
 
                 directory.mkdir(parents=True, exist_ok=True)
                 file_size = 0
@@ -146,7 +126,6 @@ def upload_project_files_service(
 
                     while True:
                         chunk = uploaded.stream.read(64 * 1024)
-
                         if not chunk:
                             break
 
@@ -167,29 +146,49 @@ def upload_project_files_service(
 
                         destination.write(chunk)
 
+                    destination.flush()
+                    os.fsync(destination.fileno())
+
                 row = files_repo.insert_project_file_repo(
                     cursor,
                     project_id,
                     folder_id,
                     file_name,
-                    (
-                        uploaded.mimetype
-                        or "application/octet-stream"
-                    )[:100],
+                    (uploaded.mimetype or "application/octet-stream")[:100],
                     file_size,
                     str(path),
                 )
-
                 if row is None:
                     raise RuntimeError(
                         "Uploaded file could not be retrieved."
                     )
 
+                version = versions_repo.insert_version_repo(
+                    cursor,
+                    row["id"],
+                    1,
+                    str(path),
+                    file_size,
+                    user_id,
+                )
+                if version is None:
+                    raise RuntimeError(
+                        "Initial file version could not be retrieved."
+                    )
+
                 record_audit_event(
-                    cursor, user_id, "Upload", "Project File", row["id"],
+                    cursor,
+                    user_id,
+                    "Upload",
+                    "Project File",
+                    row["id"],
                     f"Uploaded {file_name} to project {project_id}.",
                 )
-                results.append(file_data(row))
+
+                results.append({
+                    **file_data(row),
+                    "version": version_data(version),
+                })
 
         return {
             "files": results,
@@ -197,27 +196,31 @@ def upload_project_files_service(
         }
 
     except Exception:
-        for path in saved_paths:
-            try:
-                path.unlink(missing_ok=True)
-            except OSError:
-                current_app.logger.exception(
-                    "Could not remove a failed upload"
-                )
-
+        cleanup_uncommitted_files(saved_paths)
         raise
+
 
 def _safe_project_storage_path(path_value):
     if not path_value:
         raise FolderError("Stored file path is missing.", 409)
-    root = (Path(current_app.instance_path) / "project_uploads").resolve()
+
+    root = (
+        Path(current_app.instance_path) / "project_uploads"
+    ).resolve()
     candidate = Path(path_value).resolve()
+
     if not candidate.is_relative_to(root):
-        raise FolderError("Stored file path is outside project storage.", 409)
+        raise FolderError(
+            "Stored file path is outside project storage.",
+            409,
+        )
 
     return candidate
 
-def _check_owned_project_file(cursor, student_id, folder_id, project_id, file_id):
+
+def _check_owned_project_file(
+    cursor, student_id, folder_id, project_id, file_id
+):
     folder, _ = folders_repo.get_active_folder_repo(
         cursor, student_id, folder_id
     )
@@ -238,64 +241,103 @@ def _check_owned_project_file(cursor, student_id, folder_id, project_id, file_id
 
     return file_row
 
-def download_project_file_service(user_id, folder_id, project_id, file_id):
+
+def download_project_file_service(
+    user_id, folder_id, project_id, file_id
+):
     with student_transaction(user_id) as (cursor, student_id):
         row = _check_owned_project_file(
             cursor, student_id, folder_id, project_id, file_id
         )
         path = _safe_project_storage_path(row["current_path"])
+
         if not path.is_file():
-            raise FolderError("Stored file contents are missing.", 409)
+            raise FolderError(
+                "Stored file contents are missing.",
+                409,
+            )
+
         return {
             "path": str(path),
             "file_name": row["file_name"],
-            "file_type": row["file_type"] or "application/octet-stream",
+            "file_type": (
+                row["file_type"] or "application/octet-stream"
+            ),
         }
+
 
 def rename_project_file_service(
     user_id, folder_id, project_id, file_id, new_file_name
 ):
-    new_file_name, _ = validate_name(new_file_name, max_length=255)
+    new_file_name, _ = validate_name(
+        new_file_name,
+        max_length=255,
+    )
+
     with student_transaction(user_id) as (cursor, student_id):
         row = _check_owned_project_file(
             cursor, student_id, folder_id, project_id, file_id
         )
+
         if files_repo.file_name_exists_excluding_repo(
             cursor, project_id, new_file_name, file_id
         ):
             raise FolderError(
-                "A file with that name already exists in this project.", 409
+                "A file with that name already exists in this project.",
+                409,
             )
+
         updated = files_repo.rename_project_file_repo(
             cursor, project_id, file_id, new_file_name
         )
         if updated is None:
-            raise FolderError("File could not be renamed.", 409)
+            raise FolderError(
+                "File could not be renamed.",
+                409,
+            )
+
         record_audit_event(
-            cursor, user_id, "Rename", "Project File", file_id,
+            cursor,
+            user_id,
+            "Rename",
+            "Project File",
+            file_id,
             f"Renamed file from {row['file_name']} to {new_file_name}.",
         )
+
         return file_data(updated)
 
-def delete_project_file_service(user_id, folder_id, project_id, file_id):
+
+def delete_project_file_service(
+    user_id, folder_id, project_id, file_id
+):
     with student_transaction(user_id) as (cursor, student_id):
         _check_owned_project_file(
             cursor, student_id, folder_id, project_id, file_id
         )
-        cursor.execute("SELECT UTC_TIMESTAMP() AS deleted_at")
+
+        cursor.execute(
+            "SELECT UTC_TIMESTAMP() AS deleted_at"
+        )
         deleted_at = cursor.fetchone()["deleted_at"]
+
         result = files_repo.soft_delete_project_file_repo(
             cursor, project_id, file_id, deleted_at
         )
+
         record_audit_event(
-            cursor, user_id, "Delete", "Project File", file_id,
+            cursor,
+            user_id,
+            "Delete",
+            "Project File",
+            file_id,
             f"Soft-deleted {result['file_name']} from project {project_id}.",
         )
+
         payload = file_data(result)
         payload["deleted_at"] = (
             deleted_at.isoformat() + "Z"
             if hasattr(deleted_at, "isoformat")
-
             else str(deleted_at)
         )
         return payload
