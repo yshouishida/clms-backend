@@ -7,6 +7,9 @@ from backend.controllers.folders_controller import respond
 from backend.services.projects_services import (
     list_folder_projects_service,
     create_folder_project_service,
+    update_folder_project_service,
+    delete_folder_project_service,
+    restore_folder_project_service,
 )
 
 
@@ -69,4 +72,57 @@ def create_folder_project_control(folder_id):
         folder_id,
         body["project_name"],
         body.get("description"),
+    )
+
+def update_folder_project_control(folder_id, project_id):
+    body = request.get_json(silent=True)
+    allowed = {"project_name", "description"}
+    if not isinstance(body, dict) or not body or set(body) - allowed:
+        return error(
+            "Send project_name and/or description as a JSON object.", 400
+        )
+
+    if "project_name" in body and not isinstance(body["project_name"], str):
+        return error("project_name must be text when supplied.", 400)
+
+    if (
+        "description" in body
+        and body["description"] is not None
+        and not isinstance(body["description"], str)
+    ):
+        return error("description must be text or null.", 400)
+
+    return respond(
+        update_folder_project_service,
+        "Project updated.",
+        200,
+        folder_id,
+        project_id,
+        body.get("project_name"),
+        body.get("description"),
+        "description" in body,
+    )
+
+def delete_folder_project_control(folder_id, project_id):
+    if request.get_data() or request.args:
+        return error("DELETE project does not accept a body or query parameters.", 400)
+
+    return respond(
+        delete_folder_project_service,
+        "Project and its active files were deleted. Version files were retained.",
+        200,
+        folder_id,
+        project_id,
+    )
+
+def restore_folder_project_control(folder_id, project_id):
+    if request.get_data() or request.args:
+        return error("Project restoration does not accept a body or query parameters.", 400)
+
+    return respond(
+        restore_folder_project_service,
+        "Project and files deleted with it were restored.",
+        200,
+        folder_id,
+        project_id,
     )

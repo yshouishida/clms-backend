@@ -165,26 +165,37 @@ def get_class_repo(cursor, class_id, role, profile_id=None):
 
 
 def class_code_exists_repo(
-    cursor, class_code, school_year, semester, instructor_id, exclude_id=None
+    cursor, class_code
 ):
-    query = """
+    cursor.execute(
+        "SELECT id FROM tblClasses WHERE class_code = %s LIMIT 1",
+        (class_code,),
+    )
+    return cursor.fetchone() is not None
+
+
+def classes_by_code_repo(cursor, class_code):
+    cursor.execute(
+        """
         SELECT
-            id
+            id,
+            instructor_id,
+            class_code,
+            class_name,
+            description,
+            school_year,
+            semester,
+            status,
+            created_at
         FROM tblClasses
         WHERE class_code = %s
-          AND school_year = %s
-          AND semester = %s
-          AND instructor_id = %s
-    """
-    params = [class_code, school_year, semester, instructor_id]
-
-    if exclude_id is not None:
-        query += " AND id <> %s"
-        params.append(exclude_id)
-
-    query += " LIMIT 1"
-    cursor.execute(query, tuple(params))
-    return cursor.fetchone() is not None
+        ORDER BY id
+        LIMIT 2
+        FOR UPDATE
+        """,
+        (class_code,),
+    )
+    return cursor.fetchall()
 
 
 def insert_class_repo(cursor, instructor_id, fields):
@@ -216,15 +227,13 @@ def insert_class_repo(cursor, instructor_id, fields):
 def update_class_repo(cursor, class_id, instructor_id, fields, is_admin):
     query = """
         UPDATE tblClasses
-        SET class_code = %s,
-            class_name = %s,
+        SET class_name = %s,
             description = %s,
             school_year = %s,
             semester = %s
         WHERE id = %s
     """
     params = [
-        fields["class_code"],
         fields["class_name"],
         fields["description"],
         fields["school_year"],
@@ -254,6 +263,14 @@ def archive_class_repo(cursor, class_id, instructor_id, is_admin):
 
     cursor.execute(query, tuple(params))
     return cursor.rowcount > 0
+
+
+def lock_class_repo(cursor, class_id):
+    cursor.execute(
+        "SELECT id FROM tblClasses WHERE id = %s FOR UPDATE",
+        (class_id,),
+    )
+    return cursor.fetchone() is not None
 
 
 def student_is_active_repo(cursor, student_id):
@@ -296,7 +313,8 @@ def list_class_members_repo(cursor, class_id):
     return cursor.fetchall()
 
 
-def get_class_member_repo(cursor, class_id, student_id):
+def get_class_member_repo(cursor, class_id, student_id, for_update=False):
+    lock_clause = " FOR UPDATE" if for_update else ""
     cursor.execute(
         """
         SELECT
@@ -307,7 +325,7 @@ def get_class_member_repo(cursor, class_id, student_id):
             status
         FROM tblClassMembers
         WHERE class_id = %s AND student_id = %s
-        """,
+        """ + lock_clause,
         (class_id, student_id),
     )
     return cursor.fetchone()

@@ -36,14 +36,14 @@ def get_class_control(class_id):
 
 def create_class_control():
     body = request.get_json(silent=True)
-    allowed = {"class_code", "class_name", "school_year", "semester", "description"}
+    allowed = {"class_name", "school_year", "semester", "description"}
     required = allowed - {"description"}
     if not isinstance(body, dict):
         return error("Request body must be a valid JSON object.", 400)
     if set(body) - allowed:
         return error("Request contains unsupported fields.", 400)
     if required - set(body):
-        return error("class_code, class_name, school_year, and semester are required.", 400)
+        return error("class_name, school_year, and semester are required.", 400)
 
     return _respond(
         classes_service.create_class_service,
@@ -51,7 +51,6 @@ def create_class_control():
         201,
         g.user_id,
         g.user_role,
-        body["class_code"],
         body["class_name"],
         body["school_year"],
         body["semester"],
@@ -61,14 +60,14 @@ def create_class_control():
 
 def update_class_control(class_id):
     body = request.get_json(silent=True)
-    allowed = {"class_code", "class_name", "school_year", "semester", "description"}
+    allowed = {"class_name", "school_year", "semester", "description"}
     required = allowed - {"description"}
     if not isinstance(body, dict):
         return error("Request body must be a valid JSON object.", 400)
     if set(body) - allowed:
         return error("Request contains unsupported fields.", 400)
     if required - set(body):
-        return error("class_code, class_name, school_year, and semester are required.", 400)
+        return error("class_name, school_year, and semester are required.", 400)
 
     return _respond(
         classes_service.update_class_service,
@@ -77,7 +76,6 @@ def update_class_control(class_id):
         g.user_id,
         g.user_role,
         class_id,
-        body["class_code"],
         body["class_name"],
         body["school_year"],
         body["semester"],
@@ -135,4 +133,18 @@ def update_class_member_control(class_id, student_id):
         class_id,
         student_id,
         body["status"],
+    )
+
+
+def join_class_control():
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict) or set(body) != {"class_code"}:
+        return error("Request body must contain only class_code.", 400)
+    return _respond(
+        classes_service.join_class_service,
+        "You joined the class.",
+        201,
+        g.user_id,
+        g.user_role,
+        body["class_code"],
     )

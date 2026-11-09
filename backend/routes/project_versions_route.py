@@ -5,6 +5,7 @@ from backend.controllers.project_versions_controller import (
     upload_file_version_control,
 )
 from backend.utils.jwt import token_required, role_required
+from backend.controllers.project_versions_controller import restore_file_version_control
 
 project_versions_bp = Blueprint("project_versions", __name__)
 
@@ -26,3 +27,9 @@ def list_file_versions(folder_id, project_id, file_id):
 @role_required("Student")
 def upload_file_version(folder_id, project_id, file_id):
     return upload_file_version_control(folder_id, project_id, file_id)
+
+@project_versions_bp.route(VERSION_URL + "/<int:version_number>/restore", methods=["POST"])
+@token_required
+@role_required("Student")
+def restore_file_version(folder_id, project_id, file_id, version_number):
+    return restore_file_version_control(folder_id, project_id, file_id, version_number)

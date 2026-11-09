@@ -102,7 +102,7 @@ def inventory_list_control(kind):
 
 def inventory_detail_control(kind, record_id):
     def action():
-        if request.method == "PATCH":
+        if request.method == "PUT":
             if g.user_role != "Admin":
                 raise DomainError("Administrator access is required.", 403)
             return inventory_service.save_inventory_service(kind, json_body(), g.user_id, record_id)

@@ -1,5 +1,7 @@
 """SQL for project-file versions and post-failure storage checks."""
+
 from backend.database.connection import get_connection
+
 
 VERSION_COLUMNS = """
     id,
@@ -13,7 +15,7 @@ VERSION_COLUMNS = """
 
 def get_owned_file_repo(cursor, student_id, folder_id, project_id, file_id):
     # Lock the file while assigning the next version and changing current_path.
-    # The file's folder_id is not used here: it may be NULL or a future subfolder.
+    # The file's folder_id may be NULL or a future subfolder.
     cursor.execute(
         """
         SELECT
@@ -28,9 +30,8 @@ def get_owned_file_repo(cursor, student_id, folder_id, project_id, file_id):
             f.updated_at,
             f.deleted_at,
             f.status
-        FROM tblprojectfiles f
-        JOIN tblprojects p
-            ON p.id = f.project_id
+        FROM tblProjectFiles f
+        JOIN tblProjects p ON p.id = f.project_id
         WHERE f.id = %s
           AND f.project_id = %s
           AND p.folder_id = %s
@@ -50,9 +51,8 @@ def get_owned_file_repo(cursor, student_id, folder_id, project_id, file_id):
 def latest_version_number_repo(cursor, file_id):
     cursor.execute(
         """
-        SELECT
-            COALESCE(MAX(version_number), 0) AS latest_number
-        FROM tblprojectversions
+        SELECT COALESCE(MAX(version_number), 0) AS latest_number
+        FROM tblProjectVersions
         WHERE file_id = %s
         """,
         (file_id,),
@@ -65,7 +65,7 @@ def insert_version_repo(
 ):
     cursor.execute(
         """
-        INSERT INTO tblprojectversions (
+        INSERT INTO tblProjectVersions (
             file_id,
             version_number,
             file_path,
@@ -77,11 +77,12 @@ def insert_version_repo(
         """,
         (file_id, version_number, file_path, file_size, user_id),
     )
+
     version_id = cursor.lastrowid
     cursor.execute(
         f"""
         SELECT {VERSION_COLUMNS}
-        FROM tblprojectversions
+        FROM tblProjectVersions
         WHERE id = %s AND file_id = %s
         """,
         (version_id, file_id),
@@ -94,7 +95,7 @@ def update_current_file_repo(
 ):
     cursor.execute(
         """
-        UPDATE tblprojectfiles
+        UPDATE tblProjectFiles
         SET current_path = %s,
             file_size = %s,
             file_type = %s
@@ -108,7 +109,7 @@ def list_versions_repo(cursor, file_id, limit, offset):
     cursor.execute(
         f"""
         SELECT {VERSION_COLUMNS}
-        FROM tblprojectversions
+        FROM tblProjectVersions
         WHERE file_id = %s
         ORDER BY version_number DESC, id DESC
         LIMIT %s OFFSET %s
@@ -119,11 +120,16 @@ def list_versions_repo(cursor, file_id, limit, offset):
 
 
 def get_stored_version_repo(cursor, version_id):
-    """Return internal storage metadata, including historical versions of soft-deleted files."""
+    """Return storage metadata for a version, including a deleted file's version."""
     cursor.execute(
         """
-        SELECT v.id, v.file_id, v.version_number, v.file_path, v.file_size,
-               f.file_name
+        SELECT
+            v.id,
+            v.file_id,
+            v.version_number,
+            v.file_path,
+            v.file_size,
+            f.file_name
         FROM tblProjectVersions v
         JOIN tblProjectFiles f ON f.id = v.file_id
         WHERE v.id = %s
@@ -135,19 +141,87 @@ def get_stored_version_repo(cursor, version_id):
 
 
 def stored_path_is_referenced_repo(path):
-    """Use a fresh connection after a failed or uncertain commit before file cleanup."""
+    """Check a fresh connection before removing a file after a failed commit."""
     connection = get_connection()
     try:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
                 SELECT
-                    EXISTS(SELECT 1 FROM tblProjectVersions WHERE file_path = %s)
-                    OR EXISTS(SELECT 1 FROM tblProjectFiles WHERE current_path = %s)
-                    AS referenced
+                    EXISTS(
+                        SELECT 1
+                        FROM tblProjectVersions
+                        WHERE file_path = %s
+                    )
+                    OR EXISTS(
+                        SELECT 1
+                        FROM tblProjectFiles
+                        WHERE current_path = %s
+                    ) AS referenced
                 """,
                 (str(path), str(path)),
             )
             return bool(cursor.fetchone()["referenced"])
     finally:
         connection.close()
+
+
+def get_version_by_number_repo(cursor, file_id, version_number):
+    cursor.execute(
+        """
+        SELECT
+            id,
+            file_id,
+            version_number,
+            file_path,
+            file_size,
+            created_by,
+            created_at
+        FROM tblProjectVersions
+        WHERE file_id = %s AND version_number = %s
+        LIMIT 1
+        """,
+        (file_id, version_number),
+    )
+    return cursor.fetchone()
+
+
+def get_version_by_id_repo(cursor, file_id, version_id):
+    cursor.execute(
+        """
+        SELECT
+            id,
+            file_id,
+            version_number,
+            file_path,
+            file_size,
+            created_by,
+            created_at
+        FROM tblProjectVersions
+        WHERE file_id = %s AND id = %s
+        LIMIT 1
+        """,
+        (file_id, version_id),
+    )
+    return cursor.fetchone()
+
+
+def get_version_by_path_repo(cursor, file_id, file_path):
+    cursor.execute(
+        """
+        SELECT
+            id,
+            file_id,
+            version_number,
+            file_path,
+            file_size,
+            created_by,
+            created_at
+        FROM tblProjectVersions
+        WHERE file_id = %s AND file_path = %s
+        ORDER BY version_number DESC, id DESC
+        LIMIT 1
+        """,
+        (file_id, file_path),
+    )
+    return cursor.fetchone()

@@ -65,7 +65,9 @@ def existing_submission_repo(cursor, activity_id, student_id, lock=False):
     return cursor.fetchone()
 
 
-def insert_submission_repo(cursor, activity_id, student_id, project_id, submitted_at, status):
+def insert_submission_repo(
+    cursor, activity_id, student_id, project_id, submitted_at, status
+):
     cursor.execute(
         """
         INSERT INTO tblSubmissions

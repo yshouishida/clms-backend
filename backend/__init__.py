@@ -1,14 +1,15 @@
 from flask import Flask
-from werkzeug.exceptions import RequestEntityTooLarge
 from pymysql import MySQLError
+from werkzeug.exceptions import RequestEntityTooLarge
+
 from backend.utils.api_response import error
 
 
 def create_app():
     app = Flask(__name__)
+
     app.config["PROJECT_UPLOAD_MAX_FILES"] = 10
     app.config["PROJECT_FILE_MAX_BYTES"] = 20 * 1024 * 1024
-    app.config["MAX_CONTENT_LENGTH"] = 21 * 1024 * 1024 # 16MB max file size
     app.config["PROJECT_UPLOAD_MAX_BYTES"] = 100 * 1024 * 1024
     app.config["MAX_CONTENT_LENGTH"] = 101 * 1024 * 1024
 
@@ -19,8 +20,6 @@ def create_app():
     @app.errorhandler(MySQLError)
     def handle_database_error(exc):
         return error("Database operation failed.", 500)
-
-
 
     from backend.routes.instructors_route import instructors_bp
     from backend.routes.students_route import students_bp
@@ -36,10 +35,12 @@ def create_app():
     from backend.routes.laboratory_sessions_route import laboratory_sessions_bp
     from backend.routes.monitoring_route import monitoring_bp
     from backend.routes.submissions_route import submissions_bp
+    from backend.routes.issues_route import issues_bp
+    from backend.routes.reports_route import reports_bp
+    from backend.routes.announcements_route import announcements_bp
     from backend.utils.agent_auth import configure_monitoring
 
     configure_monitoring(app)
-
 
     app.register_blueprint(instructors_bp)
     app.register_blueprint(students_bp)
@@ -55,8 +56,8 @@ def create_app():
     app.register_blueprint(laboratory_sessions_bp)
     app.register_blueprint(monitoring_bp)
     app.register_blueprint(submissions_bp)
-
+    app.register_blueprint(issues_bp)
+    app.register_blueprint(reports_bp)
+    app.register_blueprint(announcements_bp)
 
     return app
-
-

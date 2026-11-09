@@ -107,3 +107,36 @@ def respond(operation, message, status_code=200, *args):
             500
         )
 
+def rename_folder_control(folder_id):
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict) or set(body) != {"name"}:
+        return error("Send a JSON object containing only name.", 400)
+    return respond(
+        service.rename_folder_service,
+        "Folder renamed.",
+        200,
+        folder_id,
+        body["name"],
+    )
+
+
+def delete_folder_control(folder_id):
+    if request.get_data() or request.args:
+        return error("DELETE folder does not accept a body or query parameters.", 400)
+    return respond(
+        service.delete_folder_service,
+        "Folder deleted. It can be restored while its parent remains active.",
+        200,
+        folder_id,
+    )
+
+
+def restore_folder_control(folder_id):
+    if request.get_data() or request.args:
+        return error("Folder restoration does not accept a body or query parameters.", 400)
+    return respond(
+        service.restore_folder_service,
+        "Folder restored.",
+        200,
+        folder_id,
+    )

@@ -196,3 +196,154 @@ def insert_folder_repo(cursor, student_id, parent_id, name):
 
     return cursor.lastrowid
 
+def folder_has_active_children_repo(cursor, student_id, folder_id):
+    cursor.execute(
+        """
+        SELECT id
+        FROM tblFolders
+        WHERE student_id = %s
+          AND parent_folder_id = %s
+          AND status = 'Active'
+          AND deleted_at IS NULL
+        LIMIT 1
+        """,
+        (student_id, folder_id),
+    )
+    return cursor.fetchone() is not None
+
+
+def folder_has_active_projects_repo(cursor, student_id, folder_id):
+    cursor.execute(
+        """
+        SELECT id
+        FROM tblProjects
+        WHERE student_id = %s
+          AND folder_id = %s
+          AND status = 'Active'
+          AND deleted_at IS NULL
+        LIMIT 1
+        """,
+        (student_id, folder_id),
+    )
+    return cursor.fetchone() is not None
+
+
+def rename_folder_repo(cursor, student_id, folder_id, name):
+    cursor.execute(
+        """
+        UPDATE tblFolders
+        SET folder_name = %s
+        WHERE id = %s
+          AND student_id = %s
+          AND parent_folder_id IS NOT NULL
+          AND status = 'Active'
+          AND deleted_at IS NULL
+        """,
+        (name, folder_id, student_id),
+    )
+    cursor.execute(
+        f"SELECT {FOLDER_COLUMNS} FROM tblFolders "
+        "WHERE id = %s AND student_id = %s",
+        (folder_id, student_id),
+    )
+    return cursor.fetchone()
+
+
+def soft_delete_folder_repo(cursor, student_id, folder_id, deleted_at):
+    cursor.execute(
+        """
+        UPDATE tblFolders
+        SET status = 'Deleted', deleted_at = %s
+        WHERE id = %s
+          AND student_id = %s
+          AND parent_folder_id IS NOT NULL
+          AND status = 'Active'
+          AND deleted_at IS NULL
+        """,
+        (deleted_at, folder_id, student_id),
+    )
+    if cursor.rowcount != 1:
+        raise FolderError("Folder not found or already deleted.", 404)
+    cursor.execute(
+        f"SELECT {FOLDER_COLUMNS} FROM tblFolders "
+        "WHERE id = %s AND student_id = %s",
+        (folder_id, student_id),
+    )
+    return cursor.fetchone()
+
+
+def get_deleted_folder_repo(cursor, student_id, folder_id):
+    cursor.execute(
+        f"""
+        SELECT {FOLDER_COLUMNS}
+        FROM tblFolders
+        WHERE id = %s
+          AND student_id = %s
+          AND parent_folder_id IS NOT NULL
+          AND status = 'Deleted'
+          AND deleted_at IS NOT NULL
+        LIMIT 1
+        FOR UPDATE
+        """,
+        (folder_id, student_id),
+    )
+    return cursor.fetchone()
+
+
+def restore_folder_repo(cursor, student_id, folder_id):
+    cursor.execute(
+        """
+        UPDATE tblFolders
+        SET status = 'Active', deleted_at = NULL
+        WHERE id = %s
+          AND student_id = %s
+          AND parent_folder_id IS NOT NULL
+          AND status = 'Deleted'
+          AND deleted_at IS NOT NULL
+        """,
+        (folder_id, student_id),
+    )
+    if cursor.rowcount != 1:
+        raise FolderError("Deleted folder could not be restored.", 409)
+    cursor.execute(
+        f"SELECT {FOLDER_COLUMNS} FROM tblFolders "
+        "WHERE id = %s AND student_id = %s",
+        (folder_id, student_id),
+    )
+    return cursor.fetchone()
+
+
+def active_sibling_name_exists_excluding_repo(
+    cursor, student_id, parent_id, normalized_name, excluded_folder_id
+):
+    cursor.execute(
+        f"""
+        SELECT id, folder_name
+        FROM tblFolders
+        WHERE student_id = %s AND parent_folder_id = %s
+          AND status = 'Active' AND deleted_at IS NULL
+          AND id <> %s
+        """,
+        (student_id, parent_id, excluded_folder_id),
+    )
+    return any(
+        name_key(row["folder_name"]) == normalized_name
+        for row in cursor.fetchall()
+    )
+
+
+def folder_has_active_files_repo(cursor, student_id, folder_id):
+    """True when active project files still reference this folder."""
+    cursor.execute(
+        """
+        SELECT f.id
+        FROM tblProjectFiles f
+        JOIN tblProjects p ON p.id = f.project_id
+        WHERE f.folder_id = %s AND p.student_id = %s
+          AND p.status = 'Active' AND p.deleted_at IS NULL
+          AND f.status = 'Active' AND f.deleted_at IS NULL
+        LIMIT 1
+        """,
+        (folder_id, student_id),
+    )
+    return cursor.fetchone() is not None

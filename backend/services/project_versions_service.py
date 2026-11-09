@@ -3,6 +3,8 @@ import os
 from pathlib import Path
 from uuid import uuid4
 
+import shutil
+
 from flask import current_app
 
 from backend.repositories import folders_repository as folders_repo
@@ -10,6 +12,7 @@ from backend.repositories import project_versions_repository as repo
 from backend.database.connection import get_connection
 from backend.services.folders_service import student_transaction, validate_name
 from backend.utils.folder_errors import FolderError
+from backend.utils.audit import record_audit_event
 
 
 def version_data(row):
@@ -199,6 +202,10 @@ def upload_file_version_service(
             )
             if updated_file is None:
                 raise RuntimeError("Updated file could not be retrieved.")
+            record_audit_event(
+                cursor, user_id, "Create Version", "Project File",
+                file_id, f"Created file version {latest + 1}.",
+            )
             result = {
                 "file": current_file_data(updated_file),
                 "version": version_data(version),
@@ -209,4 +216,85 @@ def upload_file_version_service(
     except Exception:
         if saved_path is not None:
             cleanup_uncommitted_files([saved_path])
+        raise
+
+def restore_file_version_service(
+    user_id, folder_id, project_id, file_id, version_number
+):
+    if type(version_number) is not int or version_number < 1:
+        raise FolderError("version_number must be a positive integer.", 400)
+
+    saved_path = None
+    try:
+        with student_transaction(user_id) as (cursor, student_id):
+            file_row = checked_file(
+                cursor, student_id, folder_id, project_id, file_id
+            )
+            source_version = repo.get_version_by_number_repo(
+                cursor, file_id, version_number
+            )
+            if source_version is None:
+                raise FolderError("Requested file version was not found.", 404)
+
+            source_path = Path(source_version["file_path"]).resolve()
+            storage_root = (
+                Path(current_app.instance_path) / "project_uploads"
+            ).resolve()
+            if not source_path.is_relative_to(storage_root):
+                raise FolderError(
+                    "Stored version path is outside project storage.", 409
+                )
+            if not source_path.is_file():
+                raise FolderError("Stored version contents are missing.", 409)
+
+            latest_number = repo.latest_version_number_repo(cursor, file_id)
+            new_number = latest_number + 1
+            destination_dir = (
+                Path(current_app.instance_path)
+                / "project_uploads" / str(student_id) / str(project_id)
+            )
+            destination_dir.mkdir(parents=True, exist_ok=True)
+            destination = destination_dir / uuid4().hex
+            if len(str(destination)) > 500:
+                raise RuntimeError("Restore storage path is too long.")
+
+            saved_path = destination
+            shutil.copyfile(source_path, destination)
+            restored_size = destination.stat().st_size
+
+            new_version = repo.insert_version_repo(
+                cursor, file_id, new_number, str(destination),
+                restored_size, user_id,
+            )
+            if new_version is None:
+                raise RuntimeError("Restored version could not be recorded.")
+
+            repo.update_current_file_repo(
+                cursor, file_id, str(destination), restored_size,
+                file_row["file_type"] or "application/octet-stream",
+            )
+            updated_file = repo.get_owned_file_repo(
+                cursor, student_id, folder_id, project_id, file_id
+            )
+            if updated_file is None:
+                raise RuntimeError("Restored current file could not be retrieved.")
+
+            record_audit_event(
+                cursor, user_id, "Restore Version", "Project File",
+                file_id,
+                f"Restored version {version_number} as version {new_number}.",
+            )
+            return {
+                "file": current_file_data(updated_file),
+                "restored_from_version": version_number,
+                "new_version": version_data(new_version),
+            }
+    except Exception:
+        if saved_path is not None:
+            try:
+                saved_path.unlink(missing_ok=True)
+            except OSError:
+                current_app.logger.exception(
+                    "Could not remove a failed restored-version copy"
+                )
         raise

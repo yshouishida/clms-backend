@@ -232,3 +232,72 @@ def create_folder_service(user_id, parent_folder_id, name):
 
         return folder_data(row)
 
+def rename_folder_service(user_id, folder_id, name):
+    name, normalized_name = validate_name(name)
+    with student_transaction(user_id) as (cursor, student_id):
+        folder, _ = repo.get_active_folder_repo(cursor, student_id, folder_id)
+        if repo.root_key(folder) is not None:
+            raise FolderError("Workspace root folders cannot be renamed.", 409)
+        parent_id = folder["parent_folder_id"]
+        _, _ = repo.get_active_folder_repo(cursor, student_id, parent_id)
+        if (
+            repo.name_key(folder["folder_name"]) != normalized_name
+            and repo.sibling_name_exists_repo(
+                cursor, student_id, parent_id, normalized_name
+            )
+        ):
+            raise FolderError("A folder with that name already exists here.", 409)
+        row = repo.rename_folder_repo(cursor, student_id, folder_id, name)
+        if row is None:
+            raise FolderError("Folder could not be renamed.", 409)
+        return folder_data(row)
+
+
+def delete_folder_service(user_id, folder_id):
+    with student_transaction(user_id) as (cursor, student_id):
+        folder, _ = repo.get_active_folder_repo(cursor, student_id, folder_id)
+        if repo.root_key(folder) is not None:
+            raise FolderError("Workspace root folders cannot be deleted.", 409)
+        if repo.folder_has_active_children_repo(cursor, student_id, folder_id):
+            raise FolderError(
+                "Folder must be empty of active child folders before deletion.",
+                409,
+            )
+        if repo.folder_has_active_projects_repo(cursor, student_id, folder_id):
+            raise FolderError(
+                "Move or delete active projects before deleting this folder.",
+                409,
+            )
+        if repo.folder_has_active_files_repo(cursor, student_id, folder_id):
+            raise FolderError(
+                "Move or delete active files before deleting this folder.",
+                409,
+            )
+        cursor.execute("SELECT UTC_TIMESTAMP() AS deleted_at")
+        deleted_at = cursor.fetchone()["deleted_at"]
+        row = repo.soft_delete_folder_repo(
+            cursor, student_id, folder_id, deleted_at
+        )
+        result = folder_data(row)
+        if hasattr(deleted_at, "isoformat"):
+            result["deleted_at"] = deleted_at.isoformat() + "Z"
+        return result
+
+
+def restore_folder_service(user_id, folder_id):
+    with student_transaction(user_id) as (cursor, student_id):
+        folder = repo.get_deleted_folder_repo(cursor, student_id, folder_id)
+        if folder is None:
+            raise FolderError("Deleted folder not found.", 404)
+        parent_id = folder["parent_folder_id"]
+        repo.get_active_folder_repo(cursor, student_id, parent_id)
+        normalized_name = repo.name_key(folder["folder_name"])
+        if repo.active_sibling_name_exists_excluding_repo(
+            cursor, student_id, parent_id, normalized_name, folder_id
+        ):
+            raise FolderError(
+                "Another active folder already uses this name; rename it before restoring.",
+                409,
+            )
+        restored = repo.restore_folder_repo(cursor, student_id, folder_id)
+        return folder_data(restored)

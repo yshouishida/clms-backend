@@ -15,7 +15,7 @@ Set `JWT_SECRET_KEY` to a random secret of at least 32 characters and `WORKSTATI
 
 Both calls require `X-Workstation-Key`. The RFID endpoint checks the card, its sole active assignment, the student's active account, the configured reader, and the workstation. The manual endpoint checks the student's password and active account. Both reject an occupied workstation or a student already in an active session with `409`. The client should retain `session_id` and the student JWT returned by login.
 
-Administrators manage cards through `GET/POST /rfid/cards`, `POST /rfid/cards/<card_id>/assignments`, `POST /rfid/cards/replacement`, `PATCH /rfid/cards/<card_id>/status`, and `GET /rfid/cards/<card_id>/assignments`. Deactivating or marking a card lost ends its active assignment. Reactivated cards must be assigned again. Replacement can accept a lost card from the student's assignment history and preserves its `Lost` status.
+Administrators manage cards through `GET/POST /rfid/cards`, `POST /rfid/cards/<card_id>/assignments`, `POST /rfid/cards/replacement`, `PUT /rfid/cards/<card_id>/status`, and `GET /rfid/cards/<card_id>/assignments`. Deactivating or marking a card lost ends its active assignment. Reactivated cards must be assigned again. Replacement can accept a lost card from the student's assignment history and preserves its `Lost` status.
 
 ## Session completion and recovery
 
@@ -25,7 +25,7 @@ The workstation JWT expires after `JWT_ACCESS_TOKEN_EXPIRES` seconds. The deskto
 
 While a workstation session is active, the desktop client should periodically call `POST /laboratory-sessions/<session_id>/heartbeat` with the workstation JWT. The backend writes an `Online` row in `tblPCStatus`. A dashboard token or another student's token cannot update that session.
 
-An administrator can call `GET /laboratory-sessions/active`, `GET /laboratory-sessions/recovery-candidates?minutes=60`, and `PATCH /laboratory-sessions/<session_id>/terminate`. A candidate has a recent `Offline` PC status or no heartbeat (or PC status) within the requested interval; where no status has ever arrived, the login time is used. Candidates are only **signals for review**. The backend does not automatically close a session after a brief disconnection. Administrators can review `GET /laboratory-sessions/summary`; students can review their own `GET /laboratory-sessions` history.
+An administrator can call `GET /laboratory-sessions/active`, `GET /laboratory-sessions/recovery-candidates?minutes=60`, and `PUT /laboratory-sessions/<session_id>/terminate`. A candidate has a recent `Offline` PC status or no heartbeat (or PC status) within the requested interval; where no status has ever arrived, the login time is used. Candidates are only **signals for review**. The backend does not automatically close a session after a brief disconnection. Administrators can review `GET /laboratory-sessions/summary`; students can review their own `GET /laboratory-sessions` history.
 
 The RFID reader, Arduino, and desktop transport have not been validated by the backend tests. A shared workstation key authenticates the desktop application fleet, not an individual reader or PC. V04 has no reader credential, device certificate, session heartbeat column, or durable JWT revocation table. Durable revocation requires additional persistence. Heartbeats use the existing `tblPCStatus` history table.
 

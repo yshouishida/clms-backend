@@ -1,10 +1,14 @@
-from flask import request
+from flask import request, current_app, g, send_file
 
 from backend.controllers.folders_controller import respond
 from backend.services.projectFiles_services import (
     list_project_files_service,
     upload_project_files_service,
+    download_project_file_service,
+    rename_project_file_service,
+    delete_project_file_service,
 )
+from backend.utils.folder_errors import FolderError
 from backend.utils.api_response import error
 
 
@@ -62,4 +66,50 @@ def upload_project_file_control(folder_id, project_id):
         folder_id,
         project_id,
         uploads,
+    )
+
+def download_project_file_control(folder_id, project_id, file_id):
+    if request.args:
+        return error("File download does not accept query parameters.", 400)
+    try:
+        item = download_project_file_service(
+            g.user_id, folder_id, project_id, file_id
+        )
+        return send_file(
+            item["path"],
+            as_attachment=True,
+            download_name=item["file_name"],
+            mimetype=item["file_type"],
+            conditional=True,
+        )
+    except FolderError as exc:
+        return error(str(exc), exc.status_code)
+    except Exception:
+        current_app.logger.exception("Project-file download failed")
+        return error("File could not be downloaded.", 500)
+
+def rename_project_file_control(folder_id, project_id, file_id):
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict) or set(body) != {"file_name"}:
+        return error("Send a JSON object containing only file_name.", 400)
+    return respond(
+        rename_project_file_service,
+        "File renamed.",
+        200,
+        folder_id,
+        project_id,
+        file_id,
+        body["file_name"],
+    )
+
+def delete_project_file_control(folder_id, project_id, file_id):
+    if request.get_data() or request.args:
+        return error("DELETE file does not accept a body or query parameters.", 400)
+    return respond(
+        delete_project_file_service,
+        "File deleted. Its stored contents and versions were retained for recovery.",
+        200,
+        folder_id,
+        project_id,
+        file_id,
     )

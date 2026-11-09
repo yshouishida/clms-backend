@@ -1,5 +1,5 @@
-from datetime import datetime
 from backend.database.connection import get_connection
+from backend.utils.audit import record_audit_event
 
 
 def login_repo(username):
@@ -87,29 +87,14 @@ def record_auth_event_repo(
         conn = get_connection()
 
         with conn.cursor() as cursor:
-            cursor.execute(
-                """
-                INSERT INTO tblAuditLogs
-                    (
-                        user_id,
-                        action,
-                        entity_name,
-                        record_id,
-                        description,
-                        ip_address,
-                        created_at
-                    )
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                """,
-                (
-                    user_id,
-                    action,
-                    entity_name,
-                    record_id,
-                    description,
-                    ip_address,
-                    datetime.now(),
-                )
+            record_audit_event(
+                cursor,
+                user_id,
+                action,
+                entity_name,
+                record_id,
+                description,
+                ip_address,
             )
 
         conn.commit()

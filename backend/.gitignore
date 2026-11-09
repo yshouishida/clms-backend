@@ -15,7 +15,3 @@ venv/
 .vscode/
 .idea/
 
-# Database scripts
-/database/views.sql
-/database/Database_Design_V04.sql
-

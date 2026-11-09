@@ -17,11 +17,11 @@ def inventory_list(kind):
     return controller.inventory_list_control(kind)
 
 
-@monitoring_bp.route("/laboratories/<int:record_id>", defaults={"kind": "laboratories"}, methods=["GET", "PATCH"])
-@monitoring_bp.route("/workstations/<int:record_id>", defaults={"kind": "workstations"}, methods=["GET", "PATCH"])
+@monitoring_bp.route("/laboratories/<int:record_id>", defaults={"kind": "laboratories"}, methods=["GET", "PUT"])
+@monitoring_bp.route("/workstations/<int:record_id>", defaults={"kind": "workstations"}, methods=["GET", "PUT"])
 @monitoring_bp.route(
     "/hardware/<any('rfid-readers','arduinos','cameras'):kind>/<int:record_id>",
-    methods=["GET", "PATCH"],
+    methods=["GET", "PUT"],
 )
 @token_required
 @role_required("Admin", "Instructor")

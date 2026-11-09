@@ -4,6 +4,7 @@ from backend.controllers.folders_controller import respond
 from backend.services.project_versions_service import (
     list_file_versions_service,
     upload_file_version_service,
+    restore_file_version_service,
 )
 from backend.utils.api_response import error
 
@@ -40,4 +41,17 @@ def upload_file_version_control(folder_id, project_id, file_id):
     return respond(
         upload_file_version_service, "File version created.", 201,
         folder_id, project_id, file_id, request.files["file"],
+    )
+
+def restore_file_version_control(folder_id, project_id, file_id, version_number):
+    if request.args or request.get_data():
+        return error("Version restoration does not accept a body or query parameters.", 400)
+    return respond(
+        restore_file_version_service,
+        "Previous contents restored as a new current version.",
+        200,
+        folder_id,
+        project_id,
+        file_id,
+        version_number,
     )
